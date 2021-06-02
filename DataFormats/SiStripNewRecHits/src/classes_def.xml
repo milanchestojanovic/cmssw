@@ -1,0 +1,20 @@
+<lcgdict>
+
+ <class name="SiStripNewRecHit"/>
+ <class name="edmNew::DetSetVector<SiStripNewRecHit>"/>
+ <class name="edm::Wrapper<edmNew::DetSetVector<SiStripNewRecHit>>"/>
+
+ <class name="std::vector<SiStripNewRecHit>"/>
+
+ <class name="edm::Ref<edmNew::DetSetVector<SiStripNewRecHit>, SiStripNewRecHit, edmNew::DetSetVector<SiStripNewRecHit>::FindForDetSetVector>"/>
+
+
+ <class name="edm::ContainerMask<edmNew::DetSetVector<SiStripNewRecHit> >"/>
+ <class name="edm::Wrapper<edm::ContainerMask<edmNew::DetSetVector<SiStripNewRecHit> > >"/>
+
+
+ <class name="std::vector<edm::Ref<edmNew::DetSetVector<SiStripNewRecHit>,SiStripNewRecHit,edmNew::DetSetVector<SiStripNewRecHit>::FindForDetSetVector> >" />
+ <class name="edmNew::DetSetVector<edm::Ref<edmNew::DetSetVector<SiStripNewRecHit>,SiStripNewRecHit,edmNew::DetSetVector<SiStripNewRecHit>::FindForDetSetVector> >" />
+ <class name="edm::Wrapper<edmNew::DetSetVector<edm::Ref<edmNew::DetSetVector<SiStripNewRecHit>,SiStripNewRecHit,edmNew::DetSetVector<SiStripNewRecHit>::FindForDetSetVector> > >" />
+
+</lcgdict>
