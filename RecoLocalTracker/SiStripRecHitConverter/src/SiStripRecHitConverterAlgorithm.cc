@@ -73,7 +73,28 @@ run(edm::Handle<edmNew::DetSetVector<SiStripCluster> > inputhandle, products& ou
       if(isMasked(cluster,bad128StripBlocks)) continue;
 
       StripClusterParameterEstimator::LocalValues parameters = 	parameterestimator->localParameters(cluster,du);
+
+      uint8_t posx = uint8_t((parameters.first.x() + 6.0)/12.0*255);
+      float posxf = 0;//posx*12./255.-6.0;  
+      uint8_t posy = uint8_t((parameters.first.y() + 6.0)/12.0*255);
+      float posyf = 0;// posy*12./255.-6.0;
+      uint8_t posz = uint8_t((parameters.first.z() + 6.0)/12.0*255);
+      float poszf = 0;//posz*12./255.-6.0;
+
+      uint8_t errxx = uint8_t((parameters.second.xx())/0.2*255);
+      float errxxf = errxx*.2/255.;
+      uint8_t errxy = uint8_t((parameters.second.xy() + 2.0)/4.0*255);
+      float errxyf = errxy*4./255.-2.0;
+      uint8_t erryy = uint8_t((parameters.second.yy())/35.0*255);
+      float erryyf = erryy*35/255.;
+
+      LocalPoint lp1(posxf,posyf,poszf);
+      LocalError le1(errxxf,errxyf,erryyf);
+
+      //LocalPoint lp1(parameters.first.x(),parameters.first.y(),parameters.first.z());
+      //LocalError le1(parameters.second.xx(),parameters.second.xy(),parameters.second.yy());
       collector.push_back(SiStripRecHit2D( parameters.first, parameters.second, du, 
+      //collector.push_back(SiStripRecHit2D( lp1, le1, du,  
                                            DS.makeRefTo(inputhandle, &cluster) 
                                           ));
     }
@@ -137,7 +158,37 @@ namespace {
 	       edm = m_collectorMatched.end();
 	     itm != edm; 
 	     ++itm) {
-	  m_collector.push_back(*itm);
+	  SiStripMatchedRecHit2D const & rechit=*itm;
+	  //GeomDet  ndet=rechit.det();
+          //SiStripRecHit2D const & mhit = rechit.monoHit();//CollectorHelper::monoHit(monoRHiter);
+	  //SiStripRecHit2D mhit; 
+	  SiStripRecHit2D mhit = rechit.monoHit();
+	   //const SiStripRecHit2D *stripHit = static_cast<const SiStripRecHit2D *>(rechit.monoHit());
+          SiStripRecHit2D const & shit = (*itm).stereoHit();
+
+          uint8_t posmx = uint8_t((rechit.localPosition().x() + 6.0)/12.0*255);
+          float posmxf =  posmx*12./255.-6.0;  
+          uint8_t posmy = uint8_t((rechit.localPosition().y() + 15.0)/30.0*255);
+          float posmyf = posmy*30/255-15;
+          uint8_t posmz = uint8_t((rechit.localPosition().z() + 6.0)/12.0*255);
+          float posmzf = 0;
+
+          uint8_t errmxx = uint8_t((rechit.localPositionError().xx())/0.00015*255);
+          float errmxxf = errmxx*.00015/255.;
+          uint8_t errmxy = uint8_t((rechit.localPositionError().xy() + .001)/0.002*255);
+          float errmxyf = errmxy*0.002/255.-0.001;
+          uint8_t errmyy = uint8_t((rechit.localPositionError().yy())/0.015*255);
+          float errmyyf = errmyy*0.015/255.;
+
+      	  LocalPoint lp2(posmxf,posmyf,posmzf);
+      	  LocalError le2(errmxxf,errmxyf,errmyyf);
+
+	  const SiStripMatchedRecHit2D nrechit(lp2, le2, *rechit.det(), &mhit, &shit );
+          //m_collector.push_back(rechit);
+          //rechit.localPosition(0,0,0);
+	  //std::cout<<" check 1 "<< rechit.localPosition().x()<<std::endl;
+          //m_collector.push_back(nrechit);
+          m_collector.push_back(*itm);
 	  // mark the stereo hit cluster as used, so that the hit won't go in the unmatched stereo ones
 	    m_matchedSteroClusters.push_back(itm->stereoClusterRef().key()); 
 	}

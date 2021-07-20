@@ -174,6 +174,7 @@ SiStripRecHitMatcher::match( const SiStripRecHit2D *monoRH,
 
    //perform the matching
    //(x2-x1)(y-y1)=(y2-y1)(x-x1)
+
     AlgebraicMatrix22 m; AlgebraicVector2 c; // FIXME understand why moving this initializer out of the loop changes the output!
     m(0,0)=m00; 
     m(0,1)=m01;
@@ -184,6 +185,7 @@ SiStripRecHitMatcher::match( const SiStripRecHit2D *monoRH,
     m.Invert(); 
     AlgebraicVector2 solution = m * c;
     LocalPoint position(solution(0),solution(1));
+    //std::cout<<" pos 2 "<<solution(0)<<std::endl;
 
     /*
     {
@@ -228,7 +230,7 @@ SiStripRecHitMatcher::match( const SiStripRecHit2D *monoRH,
     float xy=-invdet2*(sigmap12*c2*s2*l2+sigmap22*c1*s1*l1);
     float yy= invdet2*(sigmap12*c2*c2*l2+sigmap22*c1*c1*l1);
     LocalError error(xx,xy,yy);
-
+    //LocalError error(0,0,0);
     if((gluedDet->surface()).bounds().inside(position,error,scale_)){ //if it is inside the gluedet bonds
       //Change NSigmaInside in the configuration file to accept more hits
       //...and add it to the Rechit collection 
@@ -335,6 +337,7 @@ SiStripRecHitMatcher::match(const SiStripRecHit2D *monoRH,
   
   //perform the matching
   //(x2-x1)(y-y1)=(y2-y1)(x-x1)
+
   AlgebraicMatrix22 m(ROOT::Math::SMatrixNoInit{}); 
   AlgebraicVector2 c(c0,m11*projectedstripstereo.first.y()+m10*projectedstripstereo.first.x());
   m(0,0)=m00; 
@@ -344,7 +347,7 @@ SiStripRecHitMatcher::match(const SiStripRecHit2D *monoRH,
   m.Invert(); 
   AlgebraicVector2 solution = m * c;
   Local2DPoint position(solution(0),solution(1));
-  
+  //std::cout<<" pos 1 "<<solution(0)<<std::endl; 
 
   if ((!force) &&  (!((gluedDet->surface()).bounds().inside(position,10.f*scale_))) ) return std::unique_ptr<SiStripMatchedRecHit2D>(nullptr);
 
