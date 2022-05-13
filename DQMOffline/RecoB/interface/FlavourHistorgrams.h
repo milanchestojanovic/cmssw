@@ -362,7 +362,7 @@ void FlavourHistograms<T>::fill(const int& flavour, const T& variable, const T& 
 
 template <class T>
 void FlavourHistograms<T>::fill(const int& flavour, const T* variable) const {
-  if (theArrayDimension == 0) {
+  if (theArrayDimension == nullptr) {
     // single variable
     fillVariable(flavour, *variable, 1.);
   } else {
@@ -640,7 +640,7 @@ void FlavourHistograms<T>::fillVariable(const int& flavour, const T& var, const 
   if (!mcPlots_ || (theBaseNameDescription == "Jet Multiplicity" && flavour == -1))
     return;
 
-  switch (flavour) {
+  switch (std::abs(flavour)) {
     case 1:
       if (mcPlots_ > 2) {
         theHisto_d->Fill(var, w);

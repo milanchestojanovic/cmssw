@@ -1,6 +1,4 @@
 #include "HeterogeneousCore/SonicTriton/interface/triton_utils.h"
-#include "FWCore/MessageLogger/interface/MessageLogger.h"
-#include "FWCore/Utilities/interface/Exception.h"
 
 #include <sstream>
 #include <experimental/iterator>
@@ -15,17 +13,6 @@ namespace triton_utils {
     //avoid trailing delim
     std::copy(std::begin(coll), std::end(coll), std::experimental::make_ostream_joiner(msg, delim));
     return msg.str();
-  }
-
-  void throwIfError(const Error& err, std::string_view msg) {
-    if (!err.IsOk())
-      throw cms::Exception("TritonServerFailure") << msg << ": " << err;
-  }
-
-  bool warnIfError(const Error& err, std::string_view msg) {
-    if (!err.IsOk())
-      edm::LogWarning("TritonServerWarning") << msg << ": " << err;
-    return err.IsOk();
   }
 
 }  // namespace triton_utils

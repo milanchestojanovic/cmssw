@@ -1,26 +1,35 @@
 #ifndef CONDCORE_SISTRIPPLUGINS_SISTRIPPAYLOADINSPECTORHELPER_H
 #define CONDCORE_SISTRIPPLUGINS_SISTRIPPAYLOADINSPECTORHELPER_H
 
-#include <vector>
+// system includes
 #include <numeric>
 #include <string>
-#include "TH1.h"
-#include "TH2.h"
-#include "TPaveText.h"
-#include "TStyle.h"
-#include "CalibFormats/SiStripObjects/interface/SiStripQuality.h"
-#include "CondFormats/SiStripObjects/interface/SiStripSummary.h"
-#include "CondFormats/SiStripObjects/interface/SiStripDetSummary.h"
-#include "CondFormats/SiStripObjects/interface/SiStripNoises.h"
+#include <vector>
+
+// user includes
 #include "CalibFormats/SiStripObjects/interface/SiStripQuality.h"
 #include "CalibTracker/SiStripCommon/interface/SiStripDetInfoFileReader.h"
-#include "FWCore/ParameterSet/interface/FileInPath.h"
 #include "CalibTracker/StandaloneTrackerTopology/interface/StandaloneTrackerTopology.h"
-
+#include "CondCore/Utilities/interface/PayloadInspector.h"
+#include "CondFormats/SiStripObjects/interface/SiStripDetSummary.h"
+#include "CondFormats/SiStripObjects/interface/SiStripNoises.h"
+#include "CondFormats/SiStripObjects/interface/SiStripSummary.h"
+#include "DataFormats/SiStripCommon/interface/ConstantsForHardwareSystems.h" /* for STRIPS_PER_APV*/
 #include "DataFormats/SiStripDetId/interface/StripSubdetector.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
+#include "FWCore/ParameterSet/interface/FileInPath.h"
+
+// ROOT includes
+#include "TH1.h"
+#include "TH2.h"
+#include "TObjArray.h"
+#include "TPaveText.h"
+#include "TStyle.h"
 
 namespace SiStripPI {
+
+  //##### for metadata
+  using MetaData = std::tuple<cond::Time_t, cond::Hash>;
 
   //##### for plotting
 
@@ -169,7 +178,7 @@ namespace SiStripPI {
   enum estimator { min, max, mean, rms };
 
   /*--------------------------------------------------------------------*/
-  std::string estimatorType(SiStripPI::estimator e)
+  inline std::string estimatorType(SiStripPI::estimator e)
   /*--------------------------------------------------------------------*/
   {
     switch (e) {
@@ -187,7 +196,7 @@ namespace SiStripPI {
   }
 
   /*--------------------------------------------------------------------*/
-  std::string getStringFromSubdet(StripSubdetector::SubDetector sub)
+  inline std::string getStringFromSubdet(StripSubdetector::SubDetector sub)
   /*-------------------------------------------------------------------*/
   {
     switch (sub) {
@@ -247,7 +256,7 @@ namespace SiStripPI {
   };
 
   /*--------------------------------------------------------------------*/
-  std::pair<int, const char*> regionType(int index)
+  inline std::pair<int, const char*> regionType(int index)
   /*--------------------------------------------------------------------*/
   {
     auto region = static_cast<std::underlying_type_t<SiStripPI::TrackerRegion>>(index);
@@ -337,7 +346,7 @@ namespace SiStripPI {
   }
 
   /*--------------------------------------------------------------------*/
-  std::pair<float, float> getTheRange(std::map<uint32_t, float> values, const float nsigma)
+  inline std::pair<float, float> getTheRange(std::map<uint32_t, float> values, const float nsigma)
   /*--------------------------------------------------------------------*/
   {
     float sum = std::accumulate(
@@ -362,13 +371,13 @@ namespace SiStripPI {
   }
 
   /*--------------------------------------------------------------------*/
-  void drawStatBox(std::map<std::string, std::shared_ptr<TH1F>> histos,
-                   std::map<std::string, int> colormap,
-                   std::vector<std::string> legend,
-                   double X = 0.15,
-                   double Y = 0.93,
-                   double W = 0.15,
-                   double H = 0.10)
+  inline void drawStatBox(std::map<std::string, std::shared_ptr<TH1F>> histos,
+                          std::map<std::string, int> colormap,
+                          std::vector<std::string> legend,
+                          double X = 0.15,
+                          double Y = 0.93,
+                          double W = 0.15,
+                          double H = 0.10)
   /*--------------------------------------------------------------------*/
   {
     char buffer[255];
@@ -399,7 +408,7 @@ namespace SiStripPI {
   }
 
   /*--------------------------------------------------------------------*/
-  std::pair<float, float> getExtrema(TH1* h1, TH1* h2)
+  inline std::pair<float, float> getExtrema(TH1* h1, TH1* h2)
   /*--------------------------------------------------------------------*/
   {
     float theMax(-9999.);
@@ -415,7 +424,20 @@ namespace SiStripPI {
   }
 
   /*--------------------------------------------------------------------*/
-  void makeNicePlotStyle(TH1* hist)
+  inline double getMaximum(TObjArray* array)
+  /*--------------------------------------------------------------------*/
+  {
+    double theMaximum = (static_cast<TH1*>(array->At(0)))->GetMaximum();
+    for (int i = 0; i < array->GetSize(); i++) {
+      if ((static_cast<TH1*>(array->At(i)))->GetMaximum() > theMaximum) {
+        theMaximum = (static_cast<TH1*>(array->At(i)))->GetMaximum();
+      }
+    }
+    return theMaximum;
+  }
+
+  /*--------------------------------------------------------------------*/
+  inline void makeNicePlotStyle(TH1* hist)
   /*--------------------------------------------------------------------*/
   {
     hist->SetStats(kFALSE);
@@ -435,7 +457,31 @@ namespace SiStripPI {
   }
 
   /*--------------------------------------------------------------------*/
-  void printSummary(const std::map<unsigned int, SiStripDetSummary::Values>& map)
+  template <class T>
+  inline void makeNiceStyle(T* hist)
+  /*--------------------------------------------------------------------*/
+  {
+    // only for TH1s and inherited classes
+    if constexpr (std::is_base_of<T, TH1>::value) {
+      hist->SetStats(kFALSE);
+      hist->SetLineWidth(2);
+    }
+    hist->GetXaxis()->CenterTitle(true);
+    hist->GetYaxis()->CenterTitle(true);
+    hist->GetXaxis()->SetTitleFont(42);
+    hist->GetYaxis()->SetTitleFont(42);
+    hist->GetXaxis()->SetTitleSize(0.05);
+    hist->GetYaxis()->SetTitleSize(0.05);
+    hist->GetXaxis()->SetTitleOffset(0.9);
+    hist->GetYaxis()->SetTitleOffset(1.3);
+    hist->GetXaxis()->SetLabelFont(42);
+    hist->GetYaxis()->SetLabelFont(42);
+    hist->GetYaxis()->SetLabelSize(.05);
+    hist->GetXaxis()->SetLabelSize(.05);
+  }
+
+  /*--------------------------------------------------------------------*/
+  inline void printSummary(const std::map<unsigned int, SiStripDetSummary::Values>& map)
   /*--------------------------------------------------------------------*/
   {
     for (const auto& element : map) {
@@ -476,7 +522,7 @@ namespace SiStripPI {
   // code is mutuated from CalibTracker/SiStripQuality/plugins/SiStripQualityStatistics
 
   /*--------------------------------------------------------------------*/
-  void setBadComponents(int i, int component, const SiStripQuality::BadComponent& BC, int NBadComponent[4][19][4])
+  inline void setBadComponents(int i, int component, const SiStripQuality::BadComponent& BC, int NBadComponent[4][19][4])
   /*--------------------------------------------------------------------*/
   {
     if (BC.BadApvs) {
@@ -497,9 +543,9 @@ namespace SiStripPI {
 
   // generic code to fill a SiStripDetSummary with Noise payload info
   /*--------------------------------------------------------------------*/
-  void fillNoiseDetSummary(SiStripDetSummary& summaryNoise,
-                           std::shared_ptr<SiStripNoises> payload,
-                           SiStripPI::estimator est)
+  inline void fillNoiseDetSummary(SiStripDetSummary& summaryNoise,
+                                  std::shared_ptr<SiStripNoises> payload,
+                                  SiStripPI::estimator est)
   /*--------------------------------------------------------------------*/
   {
     SiStripNoises::RegistryIterator rit = payload->getRegistryVectorBegin(), erit = payload->getRegistryVectorEnd();
@@ -557,17 +603,16 @@ namespace SiStripPI {
   }
 
   /*--------------------------------------------------------------------*/
-  void fillTotalComponents(int NTkComponents[4], int NComponents[4][19][4], const TrackerTopology m_trackerTopo)
+  inline void fillTotalComponents(int NTkComponents[4], int NComponents[4][19][4], const TrackerTopology m_trackerTopo)
   /*--------------------------------------------------------------------*/
   {
-    edm::FileInPath fp_ = edm::FileInPath("CalibTracker/SiStripCommon/data/SiStripDetInfo.dat");
-    SiStripDetInfoFileReader* reader = new SiStripDetInfoFileReader(fp_.fullPath());
-    const std::map<uint32_t, SiStripDetInfoFileReader::DetInfo>& DetInfos = reader->getAllData();
-    for (const auto& det : DetInfos) {
-      int nAPVs = reader->getNumberOfApvsAndStripLength(det.first).first;
+    const auto detInfo =
+        SiStripDetInfoFileReader::read(edm::FileInPath(SiStripDetInfoFileReader::kDefaultFile).fullPath());
+    for (const auto& det : detInfo.getAllData()) {
+      int nAPVs = detInfo.getNumberOfApvsAndStripLength(det.first).first;
       // one fiber connects to 2 APVs
       int nFibers = nAPVs / 2;
-      int nStrips = (128 * reader->getNumberOfApvsAndStripLength(det.first).first);
+      int nStrips = (sistrip::STRIPS_PER_APV * detInfo.getNumberOfApvsAndStripLength(det.first).first);
       NTkComponents[0]++;
       NTkComponents[1] += nFibers;
       NTkComponents[2] += nAPVs;
@@ -604,15 +649,14 @@ namespace SiStripPI {
       NComponents[subDetIndex][component][2] += nAPVs;
       NComponents[subDetIndex][component][3] += nStrips;
     }
-    delete reader;
   }
 
   // generic code to fill the vectors of bad components
   /*--------------------------------------------------------------------*/
-  void fillBCArrays(const SiStripQuality* siStripQuality_,
-                    int NTkBadComponent[4],
-                    int NBadComponent[4][19][4],
-                    const TrackerTopology m_trackerTopo)
+  inline void fillBCArrays(const SiStripQuality* siStripQuality_,
+                           int NTkBadComponent[4],
+                           int NBadComponent[4][19][4],
+                           const TrackerTopology m_trackerTopo)
   /*--------------------------------------------------------------------*/
   {
     std::vector<SiStripQuality::BadComponent> BC = siStripQuality_->getBadComponentList();
@@ -678,8 +722,8 @@ namespace SiStripPI {
     // Single Strip Info
     //&&&&&&&&&&&&&&&&&&
 
-    edm::FileInPath fp_ = edm::FileInPath("CalibTracker/SiStripCommon/data/SiStripDetInfo.dat");
-    SiStripDetInfoFileReader* reader = new SiStripDetInfoFileReader(fp_.fullPath());
+    const auto detInfo =
+        SiStripDetInfoFileReader::read(edm::FileInPath(SiStripDetInfoFileReader::kDefaultFile).fullPath());
 
     float percentage = 0;
 
@@ -721,17 +765,15 @@ namespace SiStripPI {
         percentage += range;
       }
       if (percentage != 0)
-        percentage /= 128. * reader->getNumberOfApvsAndStripLength(detid).first;
+        percentage /= sistrip::STRIPS_PER_APV * detInfo.getNumberOfApvsAndStripLength(detid).first;
       if (percentage > 1)
         edm::LogError("SiStripBadStrip_PayloadInspector")
             << "PROBLEM detid " << detid << " value " << percentage << std::endl;
     }
-
-    delete reader;
   }
 
   /*--------------------------------------------------------------------*/
-  void printBCDebug(int NTkBadComponent[4], int NBadComponent[4][19][4])
+  inline void printBCDebug(int NTkBadComponent[4], int NBadComponent[4][19][4])
   /*--------------------------------------------------------------------*/
   {
     //&&&&&&&&&&&&&&&&&&
@@ -786,7 +828,7 @@ namespace SiStripPI {
   enum palette { HALFGRAY, GRAY, BLUES, REDS, ANTIGRAY, FIRE, ANTIFIRE, LOGREDBLUE, BLUERED, LOGBLUERED, DEFAULT };
 
   /*--------------------------------------------------------------------*/
-  void setPaletteStyle(SiStripPI::palette palette)
+  inline void setPaletteStyle(SiStripPI::palette palette)
   /*--------------------------------------------------------------------*/
   {
     TStyle* palettestyle = new TStyle("palettestyle", "Style for P-TDR");

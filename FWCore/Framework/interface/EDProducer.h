@@ -16,6 +16,7 @@ EDProducts into an Event.
 #include "DataFormats/Provenance/interface/ModuleDescription.h"
 #include "FWCore/ParameterSet/interface/ParameterSetfwd.h"
 #include "FWCore/Concurrency/interface/WaitingTaskHolder.h"
+#include "FWCore/Utilities/interface/deprecated_macro.h"
 
 #include <string>
 #include <vector>
@@ -32,6 +33,12 @@ namespace edm {
     class ModuleHolderT;
   }
 
+  /**
+   * The legacy EDProducer class is deprecated. We annotate the
+   * constructor only with the CMS_DEPRECATED, because with gcc it
+   * turns out to flag deriving classes more reliably than annotating
+   * the entire class.
+   */
   class EDProducer : public ProducerBase, public EDConsumerBase {
   public:
     template <typename T>
@@ -40,7 +47,7 @@ namespace edm {
     friend class WorkerT;
     typedef EDProducer ModuleType;
 
-    EDProducer();
+    CMS_DEPRECATED EDProducer();
     ~EDProducer() override;
 
     static void fillDescriptions(ConfigurationDescriptions& descriptions);
@@ -77,6 +84,7 @@ namespace edm {
     void doEndLuminosityBlock(LumiTransitionInfo const&, ModuleCallingContext const*);
     void doRespondToOpenInputFile(FileBlock const& fb);
     void doRespondToCloseInputFile(FileBlock const& fb);
+    void doRespondToCloseOutputFile() {}
     void doRegisterThinnedAssociations(ProductRegistry const&, ThinnedAssociationsHelper&) {}
     void registerProductsAndCallbacks(EDProducer* module, ProductRegistry* reg) {
       registerProducts(module, reg, moduleDescription_);

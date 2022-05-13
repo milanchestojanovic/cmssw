@@ -100,31 +100,29 @@ hiDetachedTripletStepPixelTracksFilter = hiFilter.clone(
     tipMax = 1.0,
     ptMin = 0.95,
 )
-hiDetachedTripletStepPixelTracks = cms.EDProducer("PixelTrackProducer",
 
-    passLabel  = cms.string('Pixel detached tracks with vertex constraint'),
+import RecoPixelVertexing.PixelTrackFitting.pixelTracks_cfi as _mod
 
+hiDetachedTripletStepPixelTracks = _mod.pixelTracks.clone(
+    passLabel  = 'Pixel detached tracks with vertex constraint',
     # Ordered Hits
-    SeedingHitSets = cms.InputTag("hiDetachedTripletStepTracksHitTriplets"),
-	
+    SeedingHitSets = "hiDetachedTripletStepTracksHitTriplets",
     # Fitter
-    Fitter = cms.InputTag("pixelFitterByHelixProjections"),
-	
+    Fitter = "pixelFitterByHelixProjections",
     # Filter
-    Filter = cms.InputTag("hiDetachedTripletStepPixelTracksFilter"),
-	
+    Filter = "hiDetachedTripletStepPixelTracksFilter",
     # Cleaner
-    Cleaner = cms.string("trackCleaner")
+    Cleaner = "trackCleaner"
 )
 trackingPhase1.toModify(hiDetachedTripletStepPixelTracks,
-    SeedingHitSets = cms.InputTag("hiDetachedTripletStepTracksHitTripletsCA")
+    SeedingHitSets = "hiDetachedTripletStepTracksHitTripletsCA"
 )
 
 
 import RecoPixelVertexing.PixelLowPtUtilities.TrackSeeds_cfi
 hiDetachedTripletStepSeeds = RecoPixelVertexing.PixelLowPtUtilities.TrackSeeds_cfi.pixelTrackSeeds.clone(
         InputCollection = 'hiDetachedTripletStepPixelTracks'
-  )
+)
 
 # QUALITY CUTS DURING TRACK BUILDING
 import TrackingTools.TrajectoryFiltering.TrajectoryFilter_cff
@@ -146,12 +144,11 @@ hiDetachedTripletStepChi2Est = TrackingTools.KalmanUpdators.Chi2MeasurementEstim
 # TRACK BUILDING
 import RecoTracker.CkfPattern.GroupedCkfTrajectoryBuilder_cfi
 hiDetachedTripletStepTrajectoryBuilder = RecoTracker.CkfPattern.GroupedCkfTrajectoryBuilder_cfi.GroupedCkfTrajectoryBuilder.clone(
-    MeasurementTrackerName = '',
     trajectoryFilter = dict(refToPSet_ = 'hiDetachedTripletStepTrajectoryFilter'),
     maxCand = 2,
     estimator = 'hiDetachedTripletStepChi2Est',
-    maxDPhiForLooperReconstruction = cms.double(0),
-    maxPtForLooperReconstruction   = cms.double(0),
+    maxDPhiForLooperReconstruction = 0.,
+    maxPtForLooperReconstruction   = 0.,
     alwaysUseInvalidHits = False
 )
 
@@ -160,11 +157,10 @@ import RecoTracker.CkfPattern.CkfTrackCandidates_cfi
 hiDetachedTripletStepTrackCandidates = RecoTracker.CkfPattern.CkfTrackCandidates_cfi.ckfTrackCandidates.clone(
     src = 'hiDetachedTripletStepSeeds',
     ### these two parameters are relevant only for the CachingSeedCleanerBySharedInput
-    numHitsForSeedCleaner = cms.int32(50),
-    onlyPixelHitsForSeedCleaner = cms.bool(True),
+    numHitsForSeedCleaner = 50,
+    onlyPixelHitsForSeedCleaner = True,
     TrajectoryBuilderPSet = dict(refToPSet_ = 'hiDetachedTripletStepTrajectoryBuilder'),
-    TrajectoryBuilder = 'hiDetachedTripletStepTrajectoryBuilder',
-    clustersToSkip = cms.InputTag('hiDetachedTripletStepClusters'),
+    clustersToSkip = 'hiDetachedTripletStepClusters',
     doSeedingRegionRebuilding = True,
     useHitsSplitting = True
 )
@@ -260,4 +256,3 @@ hiDetachedTripletStepTask_Phase1 = hiDetachedTripletStepTask.copy()
 hiDetachedTripletStepTask_Phase1.replace(hiDetachedTripletStepTracksHitDoublets, hiDetachedTripletStepTracksHitDoubletsCA)
 hiDetachedTripletStepTask_Phase1.replace(hiDetachedTripletStepTracksHitTriplets, hiDetachedTripletStepTracksHitTripletsCA)
 trackingPhase1.toReplaceWith(hiDetachedTripletStepTask, hiDetachedTripletStepTask_Phase1)
-

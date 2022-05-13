@@ -68,7 +68,7 @@ process.TFileService = cms.Service(
 # Other statements
 process.genstepfilter.triggerConditions=cms.vstring("generation_step")
 from Configuration.AlCa.GlobalTag import GlobalTag
-process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:phase2_realistic', '')
+process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:phase2_realistic_T15', '')
 
 process.generator = cms.EDProducer("FlatRandomPtGunProducer",
     PGunParameters = cms.PSet(
@@ -90,19 +90,12 @@ process.mix.digitizers = cms.PSet(process.theDigitizersValid)
 
 
 # Path and EndPath definitions
-process.generation_step = cms.Path(process.pgen)
-process.simulation_step = cms.Path(process.psim)
-process.genfiltersummary_step = cms.EndPath(process.genFilterSummary)
-process.digitisation_step = cms.Path(process.pdigi_valid)
-process.L1simulation_step = cms.Path(process.SimL1Emulator)
-process.digi2raw_step = cms.Path(process.DigiToRaw)
 process.endjob_step = cms.EndPath(process.endOfProcess)
-process.FEVTDEBUGoutput_step = cms.EndPath(process.FEVTDEBUGoutput)
 
 process.load('L1Trigger.L1THGCal.hgcalTriggerPrimitives_cff')
 # Eventually modify default geometry parameters
-from L1Trigger.L1THGCal.customTriggerGeometry import custom_geometry_decentralized_V11
-process = custom_geometry_decentralized_V11(process)
+from L1Trigger.L1THGCal.customTriggerGeometry import custom_geometry_V11_Imp2
+process = custom_geometry_V11_Imp2(process)
 
 process.hgcaltriggergeomtester = cms.EDAnalyzer(
     "HGCalTriggerGeomTesterV9Imp2"
@@ -110,8 +103,7 @@ process.hgcaltriggergeomtester = cms.EDAnalyzer(
 process.test_step = cms.Path(process.hgcaltriggergeomtester)
 
 # Schedule definition
-process.schedule = cms.Schedule(process.generation_step,process.genfiltersummary_step,process.simulation_step,process.digitisation_step,process.L1simulation_step,process.digi2raw_step,process.test_step,process.endjob_step,process.FEVTDEBUGoutput_step)
-#process.schedule = cms.Schedule(process.generation_step,process.genfiltersummary_step,process.simulation_step,process.digitisation_step,process.L1simulation_step,process.digi2raw_step,process.endjob_step,process.FEVTDEBUGoutput_step)
+process.schedule = cms.Schedule(process.test_step,process.endjob_step)
 # filter all path with the production filter sequence
 for path in process.paths:
     getattr(process,path)._seq = process.generator * getattr(process,path)._seq

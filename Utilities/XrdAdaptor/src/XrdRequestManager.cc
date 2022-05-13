@@ -22,22 +22,22 @@
 #include "Utilities/XrdAdaptor/src/XrdRequestManager.h"
 #include "Utilities/XrdAdaptor/src/XrdHostHandler.hh"
 
-#define XRD_CL_MAX_CHUNK 512 * 1024
+static constexpr int XRD_CL_MAX_CHUNK = 512 * 1024;
 
-#define XRD_ADAPTOR_SHORT_OPEN_DELAY 5
+static constexpr int XRD_ADAPTOR_SHORT_OPEN_DELAY = 5;
 
 #ifdef XRD_FAKE_OPEN_PROBE
-#define XRD_ADAPTOR_OPEN_PROBE_PERCENT 100
-#define XRD_ADAPTOR_LONG_OPEN_DELAY 20
+static constexpr int XRD_ADAPTOR_OPEN_PROBE_PERCENT = 100;
+static constexpr int XRD_ADAPTOR_LONG_OPEN_DELAY = 20;
 // This is the minimal difference in quality required to swap an active and inactive source
-#define XRD_ADAPTOR_SOURCE_QUALITY_FUDGE 0
+static constexpr int XRD_ADAPTOR_SOURCE_QUALITY_FUDGE = 0;
 #else
-#define XRD_ADAPTOR_OPEN_PROBE_PERCENT 10
-#define XRD_ADAPTOR_LONG_OPEN_DELAY 2 * 60
-#define XRD_ADAPTOR_SOURCE_QUALITY_FUDGE 100
+static constexpr int XRD_ADAPTOR_OPEN_PROBE_PERCENT = 10;
+static constexpr int XRD_ADAPTOR_LONG_OPEN_DELAY = 2 * 60;
+static constexpr int XRD_ADAPTOR_SOURCE_QUALITY_FUDGE = 100;
 #endif
 
-#define XRD_ADAPTOR_CHUNK_THRESHOLD 1000
+static constexpr int XRD_ADAPTOR_CHUNK_THRESHOLD = 1000;
 
 #ifdef __MACH__
 #include <mach/clock.h>
@@ -57,6 +57,7 @@
 #endif
 
 using namespace XrdAdaptor;
+using namespace edm::storage;
 
 long long timeDiffMS(const timespec &a, const timespec &b) {
   long long diff = (a.tv_sec - b.tv_sec) * 1000;
@@ -79,15 +80,20 @@ class SendMonitoringInfoHandler : public XrdCl::ResponseHandler {
     // Send Info has a response object; we must delete it.
     delete response;
     delete status;
+    delete this;
   }
+
+  XrdCl::FileSystem m_fs;
 
 public:
   SendMonitoringInfoHandler(const SendMonitoringInfoHandler &) = delete;
   SendMonitoringInfoHandler &operator=(const SendMonitoringInfoHandler &) = delete;
-  SendMonitoringInfoHandler() = default;
-};
+  SendMonitoringInfoHandler() = delete;
 
-CMS_THREAD_SAFE SendMonitoringInfoHandler nullHandler;
+  SendMonitoringInfoHandler(const std::string &url) : m_fs(url) {}
+
+  XrdCl::FileSystem &fs() { return m_fs; }
+};
 
 static void SendMonitoringInfo(XrdCl::File &file) {
   // Do not send this to a dCache data server as they return an error.
@@ -102,11 +108,11 @@ static void SendMonitoringInfo(XrdCl::File &file) {
   std::string lastUrl;
   file.GetProperty("LastURL", lastUrl);
   if (jobId && !lastUrl.empty()) {
-    XrdCl::URL url(lastUrl);
-    XrdCl::FileSystem fs(url);
-    if (!(fs.SendInfo(jobId, &nullHandler, 30).IsOK())) {
+    auto sm_handler = new SendMonitoringInfoHandler(lastUrl);
+    if (!(sm_handler->fs().SendInfo(jobId, sm_handler, 30).IsOK())) {
       edm::LogWarning("XrdAdaptorInternal")
           << "Failed to send the monitoring information, monitoring ID is " << jobId << ".";
+      delete sm_handler;
     }
     edm::LogInfo("XrdAdaptorInternal") << "Set monitoring ID to " << jobId << ".";
   }
@@ -116,6 +122,7 @@ RequestManager::RequestManager(const std::string &filename, XrdCl::OpenFlags::Fl
     : m_serverToAdvertise(nullptr),
       m_timeout(XRD_DEFAULT_TIMEOUT),
       m_nextInitialSourceToggle(false),
+      m_redirectLimitDelayScale(1),
       m_name(filename),
       m_flags(flags),
       m_perms(perms),
@@ -250,7 +257,7 @@ void RequestManager::updateCurrentServer() {
     std::unique_ptr<std::string> hostname(hostname_ptr);
     edm::Service<edm::storage::StatisticsSenderService> statsService;
     if (statsService.isAvailable()) {
-      statsService->setCurrentServer(*hostname_ptr);
+      statsService->setCurrentServer(m_name, *hostname_ptr);
     }
   }
 }
@@ -552,36 +559,44 @@ std::future<IOSize> RequestManager::handle(std::shared_ptr<XrdAdaptor::ClientReq
 }
 
 std::string RequestManager::prepareOpaqueString() const {
-  std::stringstream ss;
-  ss << "tried=";
-  size_t count = 0;
+  struct {
+    std::stringstream ss;
+    size_t count = 0;
+    bool has_active = false;
+
+    void append_tried(const std::string &id, bool active = false) {
+      ss << (count ? "," : "tried=") << id;
+      count++;
+      if (active) {
+        has_active = true;
+      }
+    }
+  } state;
   {
     std::lock_guard<std::recursive_mutex> sentry(m_source_mutex);
 
     for (const auto &it : m_activeSources) {
-      count++;
-      ss << it->ExcludeID().substr(0, it->ExcludeID().find(':')) << ",";
+      state.append_tried(it->ExcludeID().substr(0, it->ExcludeID().find(':')), true);
     }
     for (const auto &it : m_inactiveSources) {
-      count++;
-      ss << it->ExcludeID().substr(0, it->ExcludeID().find(':')) << ",";
+      state.append_tried(it->ExcludeID().substr(0, it->ExcludeID().find(':')));
     }
   }
   for (const auto &it : m_disabledExcludeStrings) {
-    count++;
-    ss << it.substr(0, it.find(':')) << ",";
+    state.append_tried(it.substr(0, it.find(':')));
   }
-  if (count) {
-    std::string tmp_str = ss.str();
-    return tmp_str.substr(0, tmp_str.size() - 1);
+  if (state.has_active) {
+    state.ss << "&triedrc=resel";
   }
-  return "";
+
+  return state.ss.str();
 }
 
 void XrdAdaptor::RequestManager::handleOpen(XrdCl::XRootDStatus &status, std::shared_ptr<Source> source) {
   std::lock_guard<std::recursive_mutex> sentry(m_source_mutex);
   if (status.IsOK()) {
     edm::LogVerbatim("XrdAdaptorInternal") << "Successfully opened new source: " << source->PrettyID() << std::endl;
+    m_redirectLimitDelayScale = 1;
     for (const auto &s : m_activeSources) {
       if (source->ID() == s->ID()) {
         edm::LogVerbatim("XrdAdaptorInternal")
@@ -612,7 +627,12 @@ void XrdAdaptor::RequestManager::handleOpen(XrdCl::XRootDStatus &status, std::sh
     }
   } else {  // File-open failure - wait at least 120s before next attempt.
     edm::LogVerbatim("XrdAdaptorInternal") << "Got failure when trying to open a new source" << std::endl;
-    m_nextActiveSourceCheck.tv_sec += XRD_ADAPTOR_LONG_OPEN_DELAY - XRD_ADAPTOR_SHORT_OPEN_DELAY;
+    int delayScale = 1;
+    if (status.status == XrdCl::errRedirectLimit) {
+      m_redirectLimitDelayScale = std::min(2 * m_redirectLimitDelayScale, 100);
+      delayScale = m_redirectLimitDelayScale;
+    }
+    m_nextActiveSourceCheck.tv_sec += delayScale * XRD_ADAPTOR_LONG_OPEN_DELAY - XRD_ADAPTOR_SHORT_OPEN_DELAY;
   }
 }
 
@@ -1018,7 +1038,6 @@ void XrdAdaptor::RequestManager::OpenHandler::HandleResponseWithHosts(XrdCl::XRo
          << "' (errno=" << status->errNo << ", code=" << status->code << ")";
       ex.addContext("In XrdAdaptor::RequestManager::OpenHandler::HandleResponseWithHosts()");
       manager->addConnections(ex);
-
       m_promise.set_exception(std::make_exception_ptr(ex));
     }
   }

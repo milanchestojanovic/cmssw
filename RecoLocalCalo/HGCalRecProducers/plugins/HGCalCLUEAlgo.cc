@@ -9,8 +9,8 @@
 #include "RecoEcal/EgammaCoreTools/interface/PositionCalc.h"
 //
 #include "DataFormats/CaloRecHit/interface/CaloID.h"
-#include "tbb/task_arena.h"
-#include "tbb/tbb.h"
+#include "oneapi/tbb/task_arena.h"
+#include "oneapi/tbb.h"
 #include <limits>
 
 using namespace hgcal_clustering;
@@ -285,7 +285,8 @@ void HGCalCLUEAlgoT<T>::calculateLocalDensity(const T& lt, const unsigned int la
 
       for (int etaBin = search_box[0]; etaBin < search_box[1] + 1; ++etaBin) {
         for (int phiBin = search_box[2]; phiBin < search_box[3] + 1; ++phiBin) {
-          int binId = lt.getGlobalBinByBinEtaPhi(etaBin, phiBin);
+          int phi = (phiBin % T::type::nRowsPhi);
+          int binId = lt.getGlobalBinByBinEtaPhi(etaBin, phi);
           size_t binSize = lt[binId].size();
 
           for (unsigned int j = 0; j < binSize; j++) {
@@ -297,10 +298,9 @@ void HGCalCLUEAlgoT<T>::calculateLocalDensity(const T& lt, const unsigned int la
                 int iEta = HGCScintillatorDetId(cellsOnLayer.detid[i]).ieta();
                 int otherIEta = HGCScintillatorDetId(cellsOnLayer.detid[otherId]).ieta();
                 int dIPhi = otherIPhi - iPhi;
-                dIPhi += abs(dIPhi) < 2
-                             ? 0
-                             : dIPhi < 0 ? scintMaxIphi_
-                                         : -scintMaxIphi_;  // cells with iPhi=288 and iPhi=1 should be neiboring cells
+                dIPhi += abs(dIPhi) < 2 ? 0
+                         : dIPhi < 0    ? scintMaxIphi_
+                                        : -scintMaxIphi_;  // cells with iPhi=288 and iPhi=1 should be neiboring cells
                 int dIEta = otherIEta - iEta;
                 LogDebug("HGCalCLUEAlgo") << "  Debugging calculateLocalDensity for Scintillator: \n"
                                           << "    cell: " << otherId << " energy: " << cellsOnLayer.weight[otherId]
@@ -417,7 +417,8 @@ void HGCalCLUEAlgoT<T>::calculateDistanceToHigher(const T& lt,
       for (int xBin = search_box[0]; xBin < search_box[1] + 1; ++xBin) {
         for (int yBin = search_box[2]; yBin < search_box[3] + 1; ++yBin) {
           // get the id of this bin
-          size_t binId = lt.getGlobalBinByBinEtaPhi(xBin, yBin);
+          int phi = (yBin % T::type::nRowsPhi);
+          size_t binId = lt.getGlobalBinByBinEtaPhi(xBin, phi);
           // get the size of this bin
           size_t binSize = lt[binId].size();
 

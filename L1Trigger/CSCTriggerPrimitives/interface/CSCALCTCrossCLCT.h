@@ -24,39 +24,31 @@ this feature into the CSC trigger firmware
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 
 #include <string>
-#include <vector>
+#include <array>
 
-class CSCLUTReader;
 class CSCALCTDigi;
 class CSCCLCTDigi;
 
 class CSCALCTCrossCLCT {
 public:
-  CSCALCTCrossCLCT(unsigned endcap, unsigned station, unsigned ring, bool isganged, const edm::ParameterSet& luts);
+  CSCALCTCrossCLCT(
+      unsigned endcap, unsigned station, unsigned ring, bool ignoreAlctCrossClct, const edm::ParameterSet& conf);
 
-  // check if an ALCT can cross a CLCT. Not always the case for ME1/1
-  bool doesALCTCrossCLCT(const CSCALCTDigi& a, const CSCCLCTDigi& c, bool ignoreAlctCrossClct) const;
+  /*
+    Check if an ALCT can cross a CLCT. Most of the time it can. Only in ME1/1 there are
+    special cases when they do not. This function is typically not used though, as the
+    EMTF prefers to receive all stubs. However, there is an option to discard unphysical matches.
+  */
+  bool doesALCTCrossCLCT(const CSCALCTDigi& a, const CSCCLCTDigi& c) const;
 
 private:
+  // check if a wiregroup cross a halfstrip
   bool doesWiregroupCrossHalfStrip(int wg, int keystrip) const;
 
   unsigned endcap_;
   unsigned station_;
   unsigned ring_;
-  bool isganged_;
-
-  // strings to paths of LUTs
-  std::vector<std::string> wgCrossHsME1aFiles_;
-  std::vector<std::string> wgCrossHsME1aGangedFiles_;
-  std::vector<std::string> wgCrossHsME1bFiles_;
-
-  // unique pointers to the luts
-  std::unique_ptr<CSCLUTReader> wg_cross_min_hs_ME1a_;
-  std::unique_ptr<CSCLUTReader> wg_cross_max_hs_ME1a_;
-  std::unique_ptr<CSCLUTReader> wg_cross_min_hs_ME1a_ganged_;
-  std::unique_ptr<CSCLUTReader> wg_cross_max_hs_ME1a_ganged_;
-  std::unique_ptr<CSCLUTReader> wg_cross_min_hs_ME1b_;
-  std::unique_ptr<CSCLUTReader> wg_cross_max_hs_ME1b_;
+  bool gangedME1a_;
+  bool ignoreAlctCrossClct_;
 };
-
 #endif

@@ -1,5 +1,7 @@
 #include "FWCore/ParameterSet/interface/validateTopLevelParameterSets.h"
 
+#include "FWCore/MessageLogger/interface/MessageLogger.h"
+
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "FWCore/ParameterSet/interface/ThreadsInfo.h"
@@ -12,20 +14,35 @@
 
 namespace edm {
 
+  // NOTE: The defaults given here are not actually used when running cmsRun
+  // Those come from hard coded values in the Python code in Config.py
+  // The defaults here are used when running the edmPluginHelp utility so
+  // it is important the defaults in both places are consistent.
+
   void fillOptionsDescription(ParameterSetDescription& description) {
     description.addUntracked<unsigned int>("numberOfThreads", s_defaultNumberOfThreads)
         ->setComment("If zero, let TBB use its default which is normally the number of CPUs on the machine");
     description.addUntracked<unsigned int>("numberOfStreams", 0)
-        ->setComment("If zero, then set the number of streams to be the same as the number of threads");
+        ->setComment(
+            "If zero, then set the number of streams to be the same as the number of "
+            "Threads (except always 1 if there is a looper)");
+    description.addUntracked<unsigned int>("numberOfConcurrentLuminosityBlocks", 0)
+        ->setComment(
+            "If zero, use Framework default (currently 2 when the number of streams >= 2, otherwise 1). "
+            "In all cases, the number of concurrent luminosity blocks will be reset to "
+            "be the same as the number of streams if it is greater than the "
+            "numbers of streams.");
     description.addUntracked<unsigned int>("numberOfConcurrentRuns", 1);
-    description.addUntracked<unsigned int>("numberOfConcurrentLuminosityBlocks", 1)
-        ->setComment("If zero, then set the same as the number of runs");
 
     edm::ParameterSetDescription eventSetupDescription;
-    eventSetupDescription.addUntracked<unsigned int>("numberOfConcurrentIOVs", 1)
+    eventSetupDescription.addUntracked<unsigned int>("numberOfConcurrentIOVs", 0)
         ->setComment(
-            "If zero, set to 1. Can be overridden by hard coded static in record C++ definition or by "
-            "forceNumberOfConcurrentIOVs");
+            "If zero, use the Framework default which currently means the same as the "
+            "number of concurrent luminosity blocks. Can be overridden by a hard coded "
+            "static in a record C++ definition or by forceNumberOfConcurrentIOVs. "
+            "In all cases, the number of concurrent IOVs will be reset to be the "
+            "same as the number of concurrent luminosity blocks if greater than the "
+            "number of concurrent luminosity blocks.");
     edm::ParameterSetDescription nestedDescription;
     nestedDescription.addWildcardUntracked<unsigned int>("*")->setComment(
         "Parameter names should be record names and the values are the number of concurrent IOVS for each record."
@@ -33,6 +50,16 @@ namespace edm {
     eventSetupDescription.addUntracked<edm::ParameterSetDescription>("forceNumberOfConcurrentIOVs", nestedDescription);
     description.addUntracked<edm::ParameterSetDescription>("eventSetup", eventSetupDescription);
 
+    description.addUntracked<std::vector<std::string>>("accelerators", {"*"})
+        ->setComment(
+            "Specify the set of compute accelerator(s) the job is allowed to use. The values can contain the direct "
+            "names of accelerators supported by the ProcessAccelerators defined in the configuration, or patterns "
+            "matching to them (patterns use '*' and '?' wildcards similar to shell). The actual set of accelerators to "
+            "be used is determined on the worker node based on the available hardware. A CPU fallback with the name "
+            "'cpu' is always included in the set of available accelerators. If no accelerator matching to the patterns "
+            "are available on the worker node, the job is terminated with a specific error code. Same happens if an "
+            "empty value is given in the configuration. Default value is pattern '*', which implies use of any "
+            "supported and available hardware (including the CPU fallback).");
     description.addUntracked<bool>("wantSummary", false)
         ->setComment("Set true to print a report on the trigger decisions and timing of modules");
     description.addUntracked<std::string>("fileMode", "FULLMERGE")
@@ -60,6 +87,11 @@ namespace edm {
 
     description.addUntracked<std::vector<std::string>>("canDeleteEarly", emptyVector)
         ->setComment("Branch names of products that the Framework can try to delete before the end of the Event");
+
+    description.addUntracked<bool>("dumpOptions", false)
+        ->setComment(
+            "Print values of selected Framework parameters. The Framework might modify the values "
+            "in the options parameter set and this prints the values after that modification.");
 
     description.addOptionalUntracked<bool>("allowUnscheduled")
         ->setComment(
@@ -131,4 +163,12 @@ namespace edm {
     }
   }
 
+  void dumpOptionsToLogFile(unsigned int nThreads,
+                            unsigned int nStreams,
+                            unsigned int nConcurrentLumis,
+                            unsigned int nConcurrentRuns) {
+    LogAbsolute("Options") << "Number of Threads = " << nThreads << "\nNumber of Streams = " << nStreams
+                           << "\nNumber of Concurrent Lumis = " << nConcurrentLumis
+                           << "\nNumber of Concurrent Runs = " << nConcurrentRuns;
+  }
 }  // namespace edm

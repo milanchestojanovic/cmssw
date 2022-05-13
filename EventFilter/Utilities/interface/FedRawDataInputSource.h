@@ -8,8 +8,8 @@
 #include <mutex>
 #include <thread>
 
-#include "tbb/concurrent_queue.h"
-#include "tbb/concurrent_vector.h"
+#include "oneapi/tbb/concurrent_queue.h"
+#include "oneapi/tbb/concurrent_vector.h"
 
 #include "DataFormats/Provenance/interface/ProcessHistoryID.h"
 #include "DataFormats/Provenance/interface/Timestamp.h"
@@ -60,7 +60,7 @@ private:
   void maybeOpenNewLumiSection(const uint32_t lumiSection);
   evf::EvFDaqDirector::FileStatus nextEvent();
   evf::EvFDaqDirector::FileStatus getNextEvent();
-  edm::Timestamp fillFEDRawDataCollection(FEDRawDataCollection&);
+  edm::Timestamp fillFEDRawDataCollection(FEDRawDataCollection& rawData, bool& tcdsInRange);
 
   void readSupervisor();
   void readWorker(unsigned int tid);

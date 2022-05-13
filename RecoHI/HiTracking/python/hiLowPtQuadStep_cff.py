@@ -85,21 +85,19 @@ hiLowPtQuadStepPixelTracksFilter = hiFilter.clone(
     tipMax = 1.0,
     ptMin = 0.4, #seeding region is 0.3
 )
-hiLowPtQuadStepPixelTracks = cms.EDProducer("PixelTrackProducer",
 
-    passLabel  = cms.string('Pixel detached tracks with vertex constraint'),
+import RecoPixelVertexing.PixelTrackFitting.pixelTracks_cfi as _mod
 
+hiLowPtQuadStepPixelTracks = _mod.pixelTracks.clone(
+    passLabel  = 'Pixel detached tracks with vertex constraint',
     # Ordered Hits
-    SeedingHitSets = cms.InputTag("hiLowPtQuadStepTracksHitQuadrupletsCA"),
-	
+    SeedingHitSets = "hiLowPtQuadStepTracksHitQuadrupletsCA",
     # Fitter
-    Fitter = cms.InputTag("pixelFitterByHelixProjections"),
-	
+    Fitter = "pixelFitterByHelixProjections",
     # Filter
-    Filter = cms.InputTag("hiLowPtQuadStepPixelTracksFilter"),
-	
+    Filter = "hiLowPtQuadStepPixelTracksFilter",
     # Cleaner
-    Cleaner = cms.string("trackCleaner")
+    Cleaner = "trackCleaner"
 )
 
 
@@ -128,14 +126,13 @@ hiLowPtQuadStepChi2Est = TrackingTools.KalmanUpdators.Chi2MeasurementEstimator_c
 # TRACK BUILDING
 import RecoTracker.CkfPattern.GroupedCkfTrajectoryBuilder_cfi
 hiLowPtQuadStepTrajectoryBuilder = RecoTracker.CkfPattern.GroupedCkfTrajectoryBuilder_cfi.GroupedCkfTrajectoryBuilder.clone(
-    MeasurementTrackerName = '',
     trajectoryFilter = dict(refToPSet_ = 'hiLowPtQuadStepTrajectoryFilter'),
-    maxCand = 4,#4 for pp
+    maxCand = 4, # 4 for pp
     estimator = 'hiLowPtQuadStepChi2Est',
-    maxDPhiForLooperReconstruction = cms.double(2.0),#2.0 for pp
+    maxDPhiForLooperReconstruction = 2.0, # 2.0 for pp
     # 0.63 GeV is the maximum pT for a charged particle to loop within the 1.1m radius
     # of the outermost Tracker barrel layer (B=3.8T)
-    maxPtForLooperReconstruction = cms.double(0.7),# 0.7 for pp
+    maxPtForLooperReconstruction = 0.7, # 0.7 for pp
     alwaysUseInvalidHits = False
 )
 
@@ -147,11 +144,10 @@ import RecoTracker.CkfPattern.CkfTrackCandidates_cfi
 hiLowPtQuadStepTrackCandidates = RecoTracker.CkfPattern.CkfTrackCandidates_cfi.ckfTrackCandidates.clone(
     src = 'hiLowPtQuadStepSeeds',
     ### these two parameters are relevant only for the CachingSeedCleanerBySharedInput
-    numHitsForSeedCleaner = cms.int32(50),
-    onlyPixelHitsForSeedCleaner = cms.bool(True),
+    numHitsForSeedCleaner = 50,
+    onlyPixelHitsForSeedCleaner = True,
     TrajectoryBuilderPSet = dict(refToPSet_ = 'hiLowPtQuadStepTrajectoryBuilder'),
-    TrajectoryBuilder = 'hiLowPtQuadStepTrajectoryBuilder',
-    clustersToSkip = cms.InputTag('hiLowPtQuadStepClusters'),
+    clustersToSkip = 'hiLowPtQuadStepClusters',
     doSeedingRegionRebuilding = True,
     useHitsSplitting = True
 )

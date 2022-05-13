@@ -2,8 +2,8 @@
 /*----------------------------------------------------------------------
 ----------------------------------------------------------------------*/
 #include "FWCore/Concurrency/interface/include_first_syncWait.h"
-#include "FWCore/Framework/src/Worker.h"
-#include "FWCore/Framework/src/EarlyDeleteHelper.h"
+#include "FWCore/Framework/interface/maker/Worker.h"
+#include "FWCore/Framework/interface/EarlyDeleteHelper.h"
 #include "FWCore/Framework/interface/EventPrincipal.h"
 #include "FWCore/Framework/interface/EventSetupImpl.h"
 #include "FWCore/Framework/interface/LuminosityBlockPrincipal.h"
@@ -13,8 +13,6 @@
 #include "FWCore/ServiceRegistry/interface/ESParentContext.h"
 #include "FWCore/Concurrency/interface/WaitingTask.h"
 #include "FWCore/Concurrency/interface/WaitingTaskHolder.h"
-#include "FWCore/Concurrency/interface/WaitingTaskWithArenaHolder.h"
-#include "tbb/global_control.h"
 
 namespace edm {
   namespace {
@@ -109,58 +107,6 @@ namespace edm {
 
   void Worker::setActivityRegistry(std::shared_ptr<ActivityRegistry> areg) { actReg_ = areg; }
 
-  void Worker::exceptionContext(cms::Exception& ex, ModuleCallingContext const* mcc) {
-    ModuleCallingContext const* imcc = mcc;
-    while ((imcc->type() == ParentContext::Type::kModule) or (imcc->type() == ParentContext::Type::kInternal)) {
-      std::ostringstream iost;
-      if (imcc->state() == ModuleCallingContext::State::kPrefetching) {
-        iost << "Prefetching for module ";
-      } else {
-        iost << "Calling method for module ";
-      }
-      iost << imcc->moduleDescription()->moduleName() << "/'" << imcc->moduleDescription()->moduleLabel() << "'";
-
-      if (imcc->type() == ParentContext::Type::kInternal) {
-        iost << " (probably inside some kind of mixing module)";
-        imcc = imcc->internalContext()->moduleCallingContext();
-      } else {
-        imcc = imcc->moduleCallingContext();
-      }
-      ex.addContext(iost.str());
-    }
-    std::ostringstream ost;
-    if (imcc->state() == ModuleCallingContext::State::kPrefetching) {
-      ost << "Prefetching for module ";
-    } else {
-      ost << "Calling method for module ";
-    }
-    ost << imcc->moduleDescription()->moduleName() << "/'" << imcc->moduleDescription()->moduleLabel() << "'";
-    ex.addContext(ost.str());
-
-    if (imcc->type() == ParentContext::Type::kPlaceInPath) {
-      ost.str("");
-      ost << "Running path '";
-      ost << imcc->placeInPathContext()->pathContext()->pathName() << "'";
-      ex.addContext(ost.str());
-      auto streamContext = imcc->placeInPathContext()->pathContext()->streamContext();
-      if (streamContext) {
-        ost.str("");
-        edm::exceptionContext(ost, *streamContext);
-        ex.addContext(ost.str());
-      }
-    } else {
-      if (imcc->type() == ParentContext::Type::kStream) {
-        ost.str("");
-        edm::exceptionContext(ost, *(imcc->streamContext()));
-        ex.addContext(ost.str());
-      } else if (imcc->type() == ParentContext::Type::kGlobal) {
-        ost.str("");
-        edm::exceptionContext(ost, *(imcc->globalContext()));
-        ex.addContext(ost.str());
-      }
-    }
-  }
-
   bool Worker::shouldRethrowException(std::exception_ptr iPtr, ParentContext const& parentContext, bool isEvent) const {
     // NOTE: the warning printed as a result of ignoring or failing
     // a module will only be printed during the full true processing
@@ -201,7 +147,7 @@ namespace edm {
     return true;
   }
 
-  void Worker::prePrefetchSelectionAsync(tbb::task_group& group,
+  void Worker::prePrefetchSelectionAsync(oneapi::tbb::task_group& group,
                                          WaitingTask* successTask,
                                          ServiceToken const& token,
                                          StreamID id,
@@ -265,59 +211,13 @@ namespace edm {
       return;
     }
 
-    //Thread case of 1 thread special. The master thread is doing a wait_for_all on the
-    // default tbb arena. It will not process any tasks on the es arena. We need to add a
-    // task that will synchronously do a wait_for_all in the es arena to be sure prefetching
-    // will work.
-
-    if UNLIKELY (tbb::global_control::active_value(tbb::global_control::max_allowed_parallelism) == 1) {
-      auto taskGroup = iTask.group();
-      ServiceWeakToken weakToken = iToken;
-      taskGroup->run([this, task = std::move(iTask), iTrans, &iImpl, weakToken]() {
-        std::exception_ptr exceptPtr{};
-        iImpl.taskArena()->execute([this, iTrans, &iImpl, weakToken, &exceptPtr]() {
-          exceptPtr = syncWait([&](WaitingTaskHolder&& iHolder) {
-            auto const& recs = esRecordsToGetFrom(iTrans);
-            auto const& items = esItemsToGetFrom(iTrans);
-            auto hWaitTask = std::move(iHolder);
-            auto token = weakToken.lock();
-            for (size_t i = 0; i != items.size(); ++i) {
-              if (recs[i] != ESRecordIndex{}) {
-                auto rec = iImpl.findImpl(recs[i]);
-                if (rec) {
-                  rec->prefetchAsync(hWaitTask, items[i], &iImpl, token, ESParentContext(&moduleCallingContext_));
-                }
-              }
-            }
-          });  //syncWait
-        });    //esTaskArena().execute
-        //note use of a copy gets around declaring the lambda as mutable
-        auto tempTask = task;
-        tempTask.doneWaiting(exceptPtr);
-      });  //group.run
-    } else {
-      auto group = iTask.group();
-      //We need iTask to run in the default arena since it is not an ES task
-      auto task = make_waiting_task(
-          [holder = WaitingTaskWithArenaHolder(std::move(iTask))](std::exception_ptr const* iExcept) mutable {
-            if (iExcept) {
-              holder.doneWaiting(*iExcept);
-            } else {
-              holder.doneWaiting(std::exception_ptr{});
-            }
-          });
-
-      WaitingTaskHolder tempH(*group, task);
-      iImpl.taskArena()->execute([&]() {
-        for (size_t i = 0; i != items.size(); ++i) {
-          if (recs[i] != ESRecordIndex{}) {
-            auto rec = iImpl.findImpl(recs[i]);
-            if (rec) {
-              rec->prefetchAsync(tempH, items[i], &iImpl, iToken, ESParentContext(&moduleCallingContext_));
-            }
-          }
+    for (size_t i = 0; i != items.size(); ++i) {
+      if (recs[i] != ESRecordIndex{}) {
+        auto rec = iImpl.findImpl(recs[i]);
+        if (rec) {
+          rec->prefetchAsync(iTask, items[i], &iImpl, iToken, ESParentContext(&moduleCallingContext_));
         }
-      });
+      }
     }
   }
 
@@ -456,7 +356,7 @@ namespace edm {
     try {
       convertException::wrap([&]() { this->implDoAcquire(info, &moduleCallingContext_, holder); });
     } catch (cms::Exception& ex) {
-      exceptionContext(ex, &moduleCallingContext_);
+      edm::exceptionContext(ex, moduleCallingContext_);
       if (shouldRethrowException(std::current_exception(), parentContext, true)) {
         timesRun_.fetch_add(1, std::memory_order_relaxed);
         throw;
@@ -496,7 +396,7 @@ namespace edm {
         convertException::wrap([iEPtr]() { std::rethrow_exception(*iEPtr); });
       } catch (cms::Exception& ex) {
         ModuleContextSentry moduleContextSentry(&moduleCallingContext_, parentContext);
-        exceptionContext(ex, &moduleCallingContext_);
+        edm::exceptionContext(ex, moduleCallingContext_);
         return std::current_exception();
       }
     }
@@ -504,7 +404,7 @@ namespace edm {
   }
 
   Worker::HandleExternalWorkExceptionTask::HandleExternalWorkExceptionTask(Worker* worker,
-                                                                           tbb::task_group* group,
+                                                                           oneapi::tbb::task_group* group,
                                                                            WaitingTask* runModuleTask,
                                                                            ParentContext const& parentContext)
       : m_worker(worker), m_runModuleTask(runModuleTask), m_group(group), m_parentContext(parentContext) {}

@@ -24,7 +24,7 @@ using namespace gen;
 using namespace edm;
 using namespace std;
 
-HepMC::IO_HEPEVT hepevtio;
+HepMC::IO_HEPEVT pyquen_hepevtio;
 
 const std::vector<std::string> PyquenHadronizer::theSharedResources = {edm::SharedResourceNames::kPythia6,
                                                                        gen::FortranInstance::kFortranInstance};
@@ -44,7 +44,7 @@ PyquenHadronizer ::PyquenHadronizer(const ParameterSet& pset, edm::ConsumesColle
       docollisionalenloss_(pset.getParameter<bool>("doCollisionalEnLoss")),
       doIsospin_(pset.getParameter<bool>("doIsospin")),
       protonSide_(pset.getUntrackedParameter<int>("protonSide", 0)),
-      embedding_(pset.getParameter<bool>("embeddingMode")),
+      embedding_(pset.getParameter<int>("embeddingMode")),
       evtPlane_(0),
       nquarkflavor_(pset.getParameter<int>("qgpNumQuarkFlavor")),
       qgpt0_(pset.getParameter<double>("qgpInitialTemperature")),
@@ -78,7 +78,7 @@ PyquenHadronizer ::PyquenHadronizer(const ParameterSet& pset, edm::ConsumesColle
   maxEventsToPrint_ = pset.getUntrackedParameter<int>("maxEventsToPrint", 0);
   LogDebug("Events2Print") << "Number of events to be printed = " << maxEventsToPrint_ << endl;
 
-  if (embedding_) {
+  if (embedding_ == 1) {
     cflag_ = 0;
     src_ = iC.consumes<CrossingFrame<edm::HepMCProduct> >(
         pset.getUntrackedParameter<edm::InputTag>("backgroundLabel", edm::InputTag("mix", "generatorSmeared")));
@@ -131,7 +131,7 @@ bool PyquenHadronizer::generatePartonsAndHadronize() {
   // at this part, need to overwrite filter() in
   // PyquenGeneratorFilter
 
-  if (embedding_) {
+  if (embedding_ == 1) {
     const edm::Event& e = getEDMEvent();
     HepMC::GenVertex* genvtx = nullptr;
     const HepMC::GenEvent* inev = nullptr;
@@ -212,9 +212,15 @@ bool PyquenHadronizer::generatePartonsAndHadronize() {
   call_pyhepc(1);
 
   // event information
-  // hepevtio.set_trust_mothers_before_daughters(true);
-  HepMC::GenEvent* evt = hepevtio.read_next_event();
+  // pyquen_hepevtio.set_trust_mothers_before_daughters(true);
+  HepMC::GenEvent* evt = pyquen_hepevtio.read_next_event();
 
+  // signal vertex
+  HepMC::GenVertex* sub_vertices = new HepMC::GenVertex(HepMC::FourVector(0, 0, 0, 0), 0);  // just initialization
+  if (!evt->signal_process_vertex())
+    evt->set_signal_process_vertex(sub_vertices);
+
+  delete sub_vertices;
   evt->set_signal_process_id(pypars.msti[0]);  // type of the process
   evt->set_event_scale(pypars.pari[16]);       // Q^2
 

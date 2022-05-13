@@ -5,8 +5,9 @@ import collections
 import FWCore.ParameterSet.Config as cms
 
 from RecoTracker.Configuration.customiseEarlyDeleteForSeeding import customiseEarlyDeleteForSeeding
+from RecoTracker.Configuration.customiseEarlyDeleteForMkFit import customiseEarlyDeleteForMkFit
+from RecoTracker.Configuration.customiseEarlyDeleteForCKF import customiseEarlyDeleteForCKF
 from CommonTools.ParticleFlow.Isolation.customiseEarlyDeleteForCandIsoDeposits import customiseEarlyDeleteForCandIsoDeposits
-import six
 
 def _hasInputTagModuleLabel(process, pset, psetModLabel, moduleLabels, result):
     for name in pset.parameterNames_():
@@ -44,6 +45,8 @@ def customiseEarlyDelete(process):
     products = collections.defaultdict(list)
 
     products = customiseEarlyDeleteForSeeding(process, products)
+    products = customiseEarlyDeleteForMkFit(process, products)
+    products = customiseEarlyDeleteForCKF(process, products)
 
     products = customiseEarlyDeleteForCandIsoDeposits(process, products)
 
@@ -52,29 +55,30 @@ def customiseEarlyDelete(process):
         process.options.canDeleteEarly = cms.untracked.vstring()
 
     branchSet = set()
-    for branches in six.itervalues(products):
+    for branches in products.values():
         for branch in branches:
             branchSet.add(branch)
-    process.options.canDeleteEarly.extend(list(branchSet))
+    branchList = sorted(branchSet)
+    process.options.canDeleteEarly.extend(branchList)
 
     # LogErrorHarvester should not wait for deleted items
-    for prod in six.itervalues(process.producers_()):
+    for prod in process.producers_().values():
         if prod.type_() == "LogErrorHarvester":
             if not hasattr(prod,'excludeModules'):
                 prod.excludeModules = cms.untracked.vstring()
             t = prod.excludeModules.value()
-            t.extend([b.split('_')[1] for b in branchSet])
+            t.extend([b.split('_')[1] for b in branchList])
             prod.excludeModules = t
 
     # Find the consumers
     producers=[]
     branchesList=[]
-    for producer, branches in six.iteritems(products):
+    for producer, branches in products.items():
         producers.append(producer)
         branchesList.append(branches)
 
     for moduleType in [process.producers_(), process.filters_(), process.analyzers_()]:
-        for name, module in six.iteritems(moduleType):
+        for name, module in moduleType.items():
             result=[]
             for producer in producers:
                 result.append(False)

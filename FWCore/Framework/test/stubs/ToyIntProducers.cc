@@ -119,6 +119,12 @@ namespace edmtest {
         : token_{produces<IntProduct>()}, value_(p.getParameter<int>("ivalue")) {}
     void produce(edm::Event& e, edm::EventSetup const& c) override;
 
+    static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+      edm::ParameterSetDescription desc;
+      desc.add<int>("ivalue");
+      descriptions.addDefault(desc);
+    }
+
   private:
     edm::EDPutTokenT<IntProduct> token_;
     int value_;
@@ -373,13 +379,20 @@ namespace edmtest {
     explicit AddIntsProducer(edm::ParameterSet const& p)
         : putToken_{produces<IntProduct>()},
           otherPutToken_{produces<IntProduct>("other")},
-          onlyGetOnEvent_(p.getUntrackedParameter<unsigned int>("onlyGetOnEvent", 0u)) {
+          onlyGetOnEvent_(p.getUntrackedParameter<unsigned int>("onlyGetOnEvent")) {
       auto const& labels = p.getParameter<std::vector<edm::InputTag>>("labels");
       for (auto const& label : labels) {
         tokens_.emplace_back(consumes(label));
       }
     }
     void produce(edm::StreamID, edm::Event& e, edm::EventSetup const& c) const override;
+
+    static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+      edm::ParameterSetDescription desc;
+      desc.addUntracked<unsigned int>("onlyGetOnEvent", 0u);
+      desc.add<std::vector<edm::InputTag>>("labels");
+      descriptions.addDefault(desc);
+    }
 
   private:
     std::vector<edm::EDGetTokenT<IntProduct>> tokens_;
@@ -399,6 +412,36 @@ namespace edmtest {
     }
     e.emplace(putToken_, value);
     e.emplace(otherPutToken_, value);
+  }
+
+  //
+  // Produces an IntProduct instance, using many IntProducts as input.
+  //
+
+  class AddAllIntsProducer : public edm::global::EDProducer<> {
+  public:
+    explicit AddAllIntsProducer(edm::ParameterSet const& p) : putToken_{produces()} { consumesMany<IntProduct>(); }
+    void produce(edm::StreamID, edm::Event& e, edm::EventSetup const& c) const override;
+
+    static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+      edm::ParameterSetDescription desc;
+      descriptions.addDefault(desc);
+    }
+
+  private:
+    const edm::EDPutTokenT<int> putToken_;
+  };
+
+  void AddAllIntsProducer::produce(edm::StreamID, edm::Event& e, edm::EventSetup const&) const {
+    std::vector<edm::Handle<IntProduct>> ints;
+    e.getManyByType(ints);
+
+    int value = 0;
+    for (auto const& i : ints) {
+      value += i->value;
+    }
+
+    e.emplace(putToken_, value);
   }
 
   //
@@ -457,7 +500,7 @@ namespace edmtest {
     }
 
     // EventSetup is not used.
-    for (auto const tv : tokenValues_) {
+    for (auto const& tv : tokenValues_) {
       e.emplace(tv.token, tv.value);
     }
   }
@@ -517,7 +560,8 @@ namespace edmtest {
                                                              edm::EndLuminosityBlockProducer,
                                                              edm::EndRunProducer,
                                                              edm::BeginProcessBlockProducer,
-                                                             edm::EndProcessBlockProducer> {
+                                                             edm::EndProcessBlockProducer,
+                                                             edm::InputProcessBlockCache<>> {
   public:
     explicit NonEventIntProducer(edm::ParameterSet const& p)
         : bpbToken_{produces<IntProduct, edm::Transition::BeginProcessBlock>("beginProcessBlock")},
@@ -533,7 +577,8 @@ namespace edmtest {
           blExpect_{p.getUntrackedParameter<int>("expectBeginLuminosityBlock")},
           elExpect_{p.getUntrackedParameter<int>("expectEndLuminosityBlock")},
           erExpect_{p.getUntrackedParameter<int>("expectEndRun")},
-          epbExpect_{p.getUntrackedParameter<int>("expectEndProcessBlock")} {
+          epbExpect_{p.getUntrackedParameter<int>("expectEndProcessBlock")},
+          aipbExpect_{p.getUntrackedParameter<int>("expectAccessInputProcessBlock")} {
       {
         auto tag = p.getParameter<edm::InputTag>("consumesBeginProcessBlock");
         if (not tag.label().empty()) {
@@ -570,14 +615,21 @@ namespace edmtest {
           epbGet_ = consumes<edm::InProcess>(tag);
         }
       }
+      {
+        auto tag = p.getParameter<edm::InputTag>("consumesAccessInputProcessBlock");
+        if (not tag.label().empty()) {
+          aipbGet_ = consumes<edm::InProcess>(tag);
+        }
+      }
     }
     void accumulate(edm::StreamID iID, edm::Event const& e, edm::EventSetup const& c) const override;
-    void beginProcessBlockProduce(edm::ProcessBlock&) const override;
-    void endProcessBlockProduce(edm::ProcessBlock&) const override;
+    void beginProcessBlockProduce(edm::ProcessBlock&) override;
+    void endProcessBlockProduce(edm::ProcessBlock&) override;
     void globalBeginRunProduce(edm::Run& e, edm::EventSetup const&) const override;
     void globalEndRunProduce(edm::Run& e, edm::EventSetup const&) const override;
     void globalBeginLuminosityBlockProduce(edm::LuminosityBlock& e, edm::EventSetup const&) const override;
     void globalEndLuminosityBlockProduce(edm::LuminosityBlock& e, edm::EventSetup const&) const override;
+    void accessInputProcessBlock(edm::ProcessBlock const&) override;
 
     static void fillDescriptions(edm::ConfigurationDescriptions& conf) {
       edm::ParameterSetDescription desc;
@@ -587,6 +639,8 @@ namespace edmtest {
       desc.addUntracked<int>("expectBeginProcessBlock", 0);
       desc.add<edm::InputTag>("consumesEndProcessBlock", {});
       desc.addUntracked<int>("expectEndProcessBlock", 0);
+      desc.add<edm::InputTag>("consumesAccessInputProcessBlock", {});
+      desc.addUntracked<int>("expectAccessInputProcessBlock", 0);
       desc.add<edm::InputTag>("consumesBeginRun", {});
       desc.addUntracked<int>("expectBeginRun", 0);
       desc.add<edm::InputTag>("consumesEndRun", {});
@@ -615,16 +669,18 @@ namespace edmtest {
     edm::EDGetTokenT<IntProduct> elGet_;
     edm::EDGetTokenT<IntProduct> erGet_;
     edm::EDGetTokenT<IntProduct> epbGet_;
+    edm::EDGetTokenT<IntProduct> aipbGet_;
     const int bpbExpect_;
     const int brExpect_;
     const int blExpect_;
     const int elExpect_;
     const int erExpect_;
     const int epbExpect_;
+    const int aipbExpect_;
   };
 
   void NonEventIntProducer::accumulate(edm::StreamID iID, edm::Event const& e, edm::EventSetup const&) const {}
-  void NonEventIntProducer::beginProcessBlockProduce(edm::ProcessBlock& processBlock) const {
+  void NonEventIntProducer::beginProcessBlockProduce(edm::ProcessBlock& processBlock) {
     if (not bpbGet_.isUninitialized()) {
       check(processBlock.get(bpbGet_), bpbExpect_);
     }
@@ -637,7 +693,7 @@ namespace edmtest {
     }
     processBlock.emplace(bpbToken_, value_);
   }
-  void NonEventIntProducer::endProcessBlockProduce(edm::ProcessBlock& processBlock) const {
+  void NonEventIntProducer::endProcessBlockProduce(edm::ProcessBlock& processBlock) {
     if (not epbGet_.isUninitialized()) {
       check(processBlock.get(epbGet_), epbExpect_);
     }
@@ -645,6 +701,14 @@ namespace edmtest {
       usleep(sleepTime_);
     }
     processBlock.emplace(epbToken_, value_);
+  }
+  void NonEventIntProducer::accessInputProcessBlock(edm::ProcessBlock const& processBlock) {
+    if (not aipbGet_.isUninitialized()) {
+      check(processBlock.get(aipbGet_), aipbExpect_);
+    }
+    if (sleepTime_ > 0) {
+      usleep(sleepTime_);
+    }
   }
   void NonEventIntProducer::globalBeginRunProduce(edm::Run& r, edm::EventSetup const&) const {
     if (not brGet_.isUninitialized()) {
@@ -697,14 +761,14 @@ namespace edmtest {
     explicit IntProducerBeginProcessBlock(edm::ParameterSet const& p)
         : token_{produces<IntProduct, edm::Transition::BeginProcessBlock>()}, value_(p.getParameter<int>("ivalue")) {}
     void produce(edm::StreamID, edm::Event&, edm::EventSetup const&) const override {}
-    void beginProcessBlockProduce(edm::ProcessBlock&) const override;
+    void beginProcessBlockProduce(edm::ProcessBlock&) override;
 
   private:
     edm::EDPutTokenT<IntProduct> token_;
     int value_;
   };
 
-  void IntProducerBeginProcessBlock::beginProcessBlockProduce(edm::ProcessBlock& processBlock) const {
+  void IntProducerBeginProcessBlock::beginProcessBlockProduce(edm::ProcessBlock& processBlock) {
     processBlock.emplace(token_, value_);
   }
 
@@ -721,7 +785,7 @@ namespace edmtest {
           token4_{produces<IntProduct, edm::Transition::EndProcessBlock>("four")},
           value_(p.getParameter<int>("ivalue")) {}
     void produce(edm::StreamID, edm::Event&, edm::EventSetup const&) const override {}
-    void endProcessBlockProduce(edm::ProcessBlock&) const override;
+    void endProcessBlockProduce(edm::ProcessBlock&) override;
 
   private:
     edm::EDPutTokenT<IntProduct> token_;
@@ -731,11 +795,32 @@ namespace edmtest {
     int value_;
   };
 
-  void IntProducerEndProcessBlock::endProcessBlockProduce(edm::ProcessBlock& processBlock) const {
+  void IntProducerEndProcessBlock::endProcessBlockProduce(edm::ProcessBlock& processBlock) {
     processBlock.emplace(token_, value_);
     processBlock.emplace<IntProduct>(token2_, value_ + 2);
     processBlock.put(token3_, std::make_unique<IntProduct>(value_ + 3));
     processBlock.put(token4_, std::make_unique<IntProduct>(value_ + 4));
+  }
+
+  //--------------------------------------------------------------------
+  //
+  // Produces an TransientIntProduct in ProcessBlock at endProcessBlock
+  //
+  class TransientIntProducerEndProcessBlock : public edm::global::EDProducer<edm::EndProcessBlockProducer> {
+  public:
+    explicit TransientIntProducerEndProcessBlock(edm::ParameterSet const& p)
+        : token_{produces<TransientIntProduct, edm::Transition::EndProcessBlock>()},
+          value_(p.getParameter<int>("ivalue")) {}
+    void produce(edm::StreamID, edm::Event&, edm::EventSetup const&) const override {}
+    void endProcessBlockProduce(edm::ProcessBlock&) override;
+
+  private:
+    edm::EDPutTokenT<TransientIntProduct> token_;
+    int value_;
+  };
+
+  void TransientIntProducerEndProcessBlock::endProcessBlockProduce(edm::ProcessBlock& processBlock) {
+    processBlock.emplace(token_, value_);
   }
 
   //--------------------------------------------------------------------
@@ -789,6 +874,7 @@ namespace edmtest {
   };
 }  // namespace edmtest
 
+using edmtest::AddAllIntsProducer;
 using edmtest::AddIntsProducer;
 using edmtest::BusyWaitIntLegacyProducer;
 using edmtest::BusyWaitIntLimitedProducer;
@@ -807,6 +893,7 @@ using edmtest::ManyIntWhenRegisteredProducer;
 using edmtest::NonEventIntProducer;
 using edmtest::NonProducer;
 using edmtest::TransientIntProducer;
+using edmtest::TransientIntProducerEndProcessBlock;
 DEFINE_FWK_MODULE(FailingProducer);
 DEFINE_FWK_MODULE(edmtest::FailingInLumiProducer);
 DEFINE_FWK_MODULE(edmtest::FailingInRunProducer);
@@ -822,9 +909,11 @@ DEFINE_FWK_MODULE(TransientIntProducer);
 DEFINE_FWK_MODULE(IntProducerFromTransient);
 DEFINE_FWK_MODULE(Int16_tProducer);
 DEFINE_FWK_MODULE(AddIntsProducer);
+DEFINE_FWK_MODULE(AddAllIntsProducer);
 DEFINE_FWK_MODULE(ManyIntProducer);
 DEFINE_FWK_MODULE(ManyIntWhenRegisteredProducer);
 DEFINE_FWK_MODULE(NonEventIntProducer);
 DEFINE_FWK_MODULE(IntProducerBeginProcessBlock);
 DEFINE_FWK_MODULE(IntProducerEndProcessBlock);
+DEFINE_FWK_MODULE(TransientIntProducerEndProcessBlock);
 DEFINE_FWK_MODULE(edmtest::MustRunIntProducer);

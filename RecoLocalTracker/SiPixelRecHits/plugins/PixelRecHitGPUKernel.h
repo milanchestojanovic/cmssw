@@ -22,11 +22,12 @@ namespace pixelgpudetails {
     PixelRecHitGPUKernel& operator=(const PixelRecHitGPUKernel&) = delete;
     PixelRecHitGPUKernel& operator=(PixelRecHitGPUKernel&&) = delete;
 
-    TrackingRecHit2DCUDA makeHitsAsync(SiPixelDigisCUDA const& digis_d,
-                                       SiPixelClustersCUDA const& clusters_d,
-                                       BeamSpotCUDA const& bs_d,
-                                       pixelCPEforGPU::ParamsOnGPU const* cpeParams,
-                                       cudaStream_t stream) const;
+    TrackingRecHit2DGPU makeHitsAsync(SiPixelDigisCUDA const& digis_d,
+                                      SiPixelClustersCUDA const& clusters_d,
+                                      BeamSpotCUDA const& bs_d,
+                                      pixelCPEforGPU::ParamsOnGPU const* cpeParams,
+                                      bool isPhase2,
+                                      cudaStream_t stream) const;
   };
 }  // namespace pixelgpudetails
 

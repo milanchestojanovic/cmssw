@@ -26,8 +26,8 @@ photonIsolationHIProducerGED = photonIsolationHIProducer.clone(photonProducer = 
 #These are set for consistency w/ HiElectronSequence, but these cuts need to be studied
 gedGsfElectronsTmp.preselection.maxHOverEBarrelCone = 0.25
 gedGsfElectronsTmp.preselection.maxHOverEEndcapsCone = 0.25
-gedGsfElectronsTmp.preselection.maxHOverEBarrelTower = 0.0
-gedGsfElectronsTmp.preselection.maxHOverEEndcapsTower = 0.0
+gedGsfElectronsTmp.preselection.maxHOverEBarrelBc = 0.0
+gedGsfElectronsTmp.preselection.maxHOverEEndcapsBc = 0.0
 gedGsfElectronsTmp.preselection.maxEOverPBarrel = 2.
 gedGsfElectronsTmp.preselection.maxEOverPEndcaps = 2.
 
@@ -87,9 +87,9 @@ particleFlowTmp.muons = "hiMuons1stStep"
 particleFlowTmp.usePFConversions = False
 
 pfNoPileUpIso.enable = False
-pfPileUpIso.Enable = False
+pfPileUpIso.enable = False
 pfNoPileUp.enable = False
-pfPileUp.Enable = False
+pfPileUp.enable = False
 particleFlow.Muons = "muons:hiMuons1stStep2muonsMap"
 
 

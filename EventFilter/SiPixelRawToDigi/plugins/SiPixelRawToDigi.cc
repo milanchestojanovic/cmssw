@@ -36,9 +36,12 @@
 #include "DataFormats/SiPixelDigi/interface/PixelDigi.h"
 #include "DataFormats/SiPixelDetId/interface/PixelFEDChannel.h"
 #include "DataFormats/SiPixelRawData/interface/SiPixelRawDataError.h"
+#include "DataFormats/SiPixelDigi/interface/SiPixelDigiConstants.h"
 
 #include "EventFilter/SiPixelRawToDigi/interface/PixelDataFormatter.h"
 #include "EventFilter/SiPixelRawToDigi/interface/PixelUnpackingRegions.h"
+
+using namespace sipixelconstants;
 
 /** \class SiPixelRawToDigi
  *  Plug-in module that performs Raw data to digi conversion 
@@ -104,7 +107,8 @@ SiPixelRawToDigi::SiPixelRawToDigi(const edm::ParameterSet& conf)
 
 {
   if (useQuality_) {
-    siPixelQualityToken_ = esConsumes<SiPixelQuality, SiPixelQualityRcd>();
+    siPixelQualityToken_ = esConsumes<SiPixelQuality, SiPixelQualityRcd>(
+        edm::ESInputTag("", config_.getParameter<std::string>("SiPixelQualityLabel")));
   }
 
   // Products
@@ -161,6 +165,7 @@ void SiPixelRawToDigi::fillDescriptions(edm::ConfigurationDescriptions& descript
   desc.add<bool>("UsePilotBlade", false)->setComment("##  Use pilot blades");
   desc.add<bool>("UsePhase1", false)->setComment("##  Use phase1");
   desc.add<std::string>("CablingMapLabel", "")->setComment("CablingMap label");  //Tav
+  desc.add<std::string>("SiPixelQualityLabel", "")->setComment("SiPixelQuality label");
   descriptions.add("siPixelRawToDigi", desc);
 }
 

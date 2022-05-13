@@ -4,6 +4,7 @@
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "DataFormats/Common/interface/ValueMap.h"
 #include "RecoEgamma/EgammaTools/interface/AnyMVAEstimatorRun2Base.h"
+#include "RecoEgamma/EgammaTools/interface/AnyMVAEstimatorRun2Factory.h"
 #include "DataFormats/EgammaCandidates/interface/Photon.h"
 #include "CommonTools/Egamma/interface/EffectiveAreas.h"
 #include "CondFormats/GBRForest/interface/GBRForest.h"
@@ -126,7 +127,7 @@ float PhotonMVAEstimator::mvaValue(const reco::Candidate* candPtr,
     // for endcap MVA only in 2016
     double eA = effectiveAreas_->getEffectiveArea(std::abs(phoPtr->superCluster()->eta()));
     double phoIsoCorr = vars[10] - eA * (double)vars[9] - phoIsoPtScalingCoeff_.at(1) * phoPtr->pt();
-    vars[10] = TMath::Max(phoIsoCorr, phoIsoCutoff_);
+    vars[10] = std::max(phoIsoCorr, phoIsoCutoff_);
   }
 
   if (isDebug()) {

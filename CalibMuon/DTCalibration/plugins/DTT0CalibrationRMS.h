@@ -9,10 +9,11 @@
  *  odd and even layers
  */
 
-#include "FWCore/Framework/interface/EDAnalyzer.h"
+#include "FWCore/Framework/interface/one/EDAnalyzer.h"
 #include "Geometry/DTGeometry/interface/DTGeometry.h"
 #include "DataFormats/MuonDetId/interface/DTWireId.h"
 #include "FWCore/Framework/interface/ESHandle.h"
+#include "Geometry/Records/interface/MuonGeometryRecord.h"
 
 #include <string>
 #include <vector>
@@ -23,7 +24,7 @@ class TH1I;
 class TH1D;
 class DTT0;
 
-class DTT0CalibrationRMS : public edm::EDAnalyzer {
+class DTT0CalibrationRMS : public edm::one::EDAnalyzer<> {
 public:
   /// Constructor
   DTT0CalibrationRMS(const edm::ParameterSet& pset);
@@ -105,5 +106,6 @@ private:
 
   //DTGeometry used to loop on the SL in the endJob
   edm::ESHandle<DTGeometry> dtGeom;
+  const edm::ESGetToken<DTGeometry, MuonGeometryRecord> dtGeomToken_;
 };
 #endif

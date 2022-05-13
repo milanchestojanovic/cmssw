@@ -3,7 +3,8 @@ from __future__ import print_function
 
 import FWCore.ParameterSet.Config as cms
 
-process = cms.Process("Physics")
+from Configuration.Eras.Era_Run3_cff import Run3
+process = cms.Process("Physics", Run3)
 
 #----------------------------
 # Event Source
@@ -56,7 +57,7 @@ process.p = cms.Path(
     process.dqmSaverPB
 )
 
-process.siPixelDigis.cpu.InputLabel = cms.InputTag("rawDataCollector")
+process.siPixelDigis.cpu.InputLabel = "rawDataCollector"
 
 ### process customizations included here
 from DQM.Integration.config.online_customizations_cfi import *
@@ -69,4 +70,4 @@ process = customise(process)
 print("Running with run type = ", process.runType.getRunType())
 
 if (process.runType.getRunType() == process.runType.hi_run):
-    process.siPixelDigis.cpu.InputLabel = cms.InputTag("rawDataRepacker")
+    process.siPixelDigis.cpu.InputLabel = "rawDataRepacker"

@@ -417,7 +417,8 @@ namespace edm {
         r.contributingInputs.push_back(i);
       }
     }
-    for (tbb::concurrent_vector<Token>::size_type i = 0, iEnd = impl_->inputFilesSecSource_.size(); i < iEnd; ++i) {
+    for (oneapi::tbb::concurrent_vector<Token>::size_type i = 0, iEnd = impl_->inputFilesSecSource_.size(); i < iEnd;
+         ++i) {
       if (!impl_->inputFilesSecSource_[i].fileHasBeenClosed) {
         r.contributingInputsSecSource.push_back(i);
       }
@@ -567,9 +568,9 @@ namespace edm {
   }
 
   void JobReport::reportReadBranches() {
-    if (impl_->printedReadBranches_)
+    bool expected = false;
+    if (not impl_->printedReadBranches_.compare_exchange_strong(expected, true))
       return;
-    impl_->printedReadBranches_ = true;
     if (impl_->ost_) {
       std::ostream& ost = *(impl_->ost_);
       ost << "<ReadBranches>\n";

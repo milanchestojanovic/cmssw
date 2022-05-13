@@ -282,11 +282,8 @@ class RecoJetAdder(object):
         # CHS
         #
         elif recoJetInfo.jetPUMethod == "chs":
-          self.addProcessAndTask(proc, pfCand, cms.EDFilter("CandPtrSelector",
-              src = cms.InputTag(self.pfLabel),
-              cut = cms.string("fromPV"),
-            )
-          )
+          self.addProcessAndTask(proc, pfCand, pfCHS.clone(
+	      src = self.pfLabel))
           self.prerequisites.append(pfCand)
         #
         # PUPPI

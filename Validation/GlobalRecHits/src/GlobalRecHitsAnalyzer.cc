@@ -21,6 +21,12 @@ GlobalRecHitsAnalyzer::GlobalRecHitsAnalyzer(const edm::ParameterSet& iPSet)
       getAllProvenances(false),
       printProvenanceInfo(false),
       trackerHitAssociatorConfig_(iPSet, consumesCollector()),
+      caloGeomToken_(esConsumes()),
+      tTopoToken_(esConsumes()),
+      tGeomToken_(esConsumes()),
+      dtGeomToken_(esConsumes()),
+      cscGeomToken_(esConsumes()),
+      rpcGeomToken_(esConsumes()),
       count(0) {
   consumesMany<edm::SortedCollection<HBHERecHit, edm::StrictWeakOrdering<HBHERecHit>>>();
   consumesMany<edm::SortedCollection<HFRecHit, edm::StrictWeakOrdering<HFRecHit>>>();
@@ -370,26 +376,23 @@ void GlobalRecHitsAnalyzer::fillECal(const edm::Event& iEvent, const edm::EventS
   ////////////////////////
   edm::Handle<EBUncalibratedRecHitCollection> EcalUncalibRecHitEB;
   iEvent.getByToken(ECalUncalEBSrc_Token_, EcalUncalibRecHitEB);
-  bool validUncalibRecHitEB = true;
-  if (!EcalUncalibRecHitEB.isValid()) {
+  bool validUncalibRecHitEB = EcalUncalibRecHitEB.isValid();
+  if (!validUncalibRecHitEB) {
     LogDebug(MsgLoggerCat) << "Unable to find EcalUncalRecHitEB in event!";
-    validUncalibRecHitEB = false;
   }
 
   edm::Handle<EBRecHitCollection> EcalRecHitEB;
   iEvent.getByToken(ECalEBSrc_Token_, EcalRecHitEB);
-  bool validRecHitEB = true;
-  if (!EcalRecHitEB.isValid()) {
+  bool validRecHitEB = EcalRecHitEB.isValid();
+  if (!validRecHitEB) {
     LogDebug(MsgLoggerCat) << "Unable to find EcalRecHitEB in event!";
-    validRecHitEB = false;
   }
 
   // loop over simhits
   iEvent.getByToken(EBHits_Token_, crossingFrame);
-  bool validXFrame = true;
-  if (!crossingFrame.isValid()) {
+  bool validXFrame = crossingFrame.isValid();
+  if (!validXFrame) {
     LogDebug(MsgLoggerCat) << "Unable to find cal barrel crossingFrame in event!";
-    validXFrame = false;
   }
 
   MapType ebSimMap;
@@ -435,26 +438,23 @@ void GlobalRecHitsAnalyzer::fillECal(const edm::Event& iEvent, const edm::EventS
   ////////////////////////
   edm::Handle<EEUncalibratedRecHitCollection> EcalUncalibRecHitEE;
   iEvent.getByToken(ECalUncalEESrc_Token_, EcalUncalibRecHitEE);
-  bool validuncalibRecHitEE = true;
-  if (!EcalUncalibRecHitEE.isValid()) {
+  bool validuncalibRecHitEE = EcalUncalibRecHitEE.isValid();
+  if (!validuncalibRecHitEE) {
     LogDebug(MsgLoggerCat) << "Unable to find EcalUncalRecHitEE in event!";
-    validuncalibRecHitEE = false;
   }
 
   edm::Handle<EERecHitCollection> EcalRecHitEE;
   iEvent.getByToken(ECalEESrc_Token_, EcalRecHitEE);
-  bool validRecHitEE = true;
-  if (!EcalRecHitEE.isValid()) {
+  bool validRecHitEE = EcalRecHitEE.isValid();
+  if (!validRecHitEE) {
     LogDebug(MsgLoggerCat) << "Unable to find EcalRecHitEE in event!";
-    validRecHitEE = false;
   }
 
   // loop over simhits
   iEvent.getByToken(EEHits_Token_, crossingFrame);
-  validXFrame = true;
-  if (!crossingFrame.isValid()) {
+  validXFrame = crossingFrame.isValid();
+  if (!validXFrame) {
     LogDebug(MsgLoggerCat) << "Unable to find cal endcap crossingFrame in event!";
-    validXFrame = false;
   }
 
   MapType eeSimMap;
@@ -500,18 +500,16 @@ void GlobalRecHitsAnalyzer::fillECal(const edm::Event& iEvent, const edm::EventS
   ////////////////////////
   edm::Handle<ESRecHitCollection> EcalRecHitES;
   iEvent.getByToken(ECalESSrc_Token_, EcalRecHitES);
-  bool validRecHitES = true;
-  if (!EcalRecHitES.isValid()) {
+  bool validRecHitES = EcalRecHitES.isValid();
+  if (!validRecHitES) {
     LogDebug(MsgLoggerCat) << "Unable to find EcalRecHitES in event!";
-    validRecHitES = false;
   }
 
   // loop over simhits
   iEvent.getByToken(ESHits_Token_, crossingFrame);
-  validXFrame = true;
-  if (!crossingFrame.isValid()) {
+  validXFrame = crossingFrame.isValid();
+  if (!validXFrame) {
     LogDebug(MsgLoggerCat) << "Unable to find cal preshower crossingFrame in event!";
-    validXFrame = false;
   }
 
   MapType esSimMap;
@@ -558,8 +556,7 @@ void GlobalRecHitsAnalyzer::fillHCal(const edm::Event& iEvent, const edm::EventS
     eventout = "\nGathering info:";
 
   // get geometry
-  edm::ESHandle<CaloGeometry> geometry;
-  iSetup.get<CaloGeometryRecord>().get(geometry);
+  const auto& geometry = iSetup.getHandle(caloGeomToken_);
   if (!geometry.isValid()) {
     edm::LogWarning(MsgLoggerCat) << "Unable to find CaloGeometry in event!";
     return;
@@ -570,10 +567,9 @@ void GlobalRecHitsAnalyzer::fillHCal(const edm::Event& iEvent, const edm::EventS
   //////////////////////
   edm::Handle<edm::PCaloHitContainer> hcalHits;
   iEvent.getByToken(HCalSrc_Token_, hcalHits);
-  bool validhcalHits = true;
-  if (!hcalHits.isValid()) {
+  bool validhcalHits = hcalHits.isValid();
+  if (!validhcalHits) {
     LogDebug(MsgLoggerCat) << "Unable to find hcalHits in event!";
-    validhcalHits = false;
   }
 
   std::map<HcalDetId, float> fHBEnergySimHits;
@@ -602,97 +598,33 @@ void GlobalRecHitsAnalyzer::fillHCal(const edm::Event& iEvent, const edm::EventS
     }
   }
 
-  // max values to be used (HO is found in HB)
-  Double_t maxHBEnergy = 0.;
-  Double_t maxHEEnergy = 0.;
-  Double_t maxHFEnergy = 0.;
-
-  Double_t maxHBPhi = -1000.;
-  Double_t maxHEPhi = -1000.;
-  Double_t maxHOPhi = -1000.;
-  Double_t maxHFPhi = -1000.;
-
-  Double_t PI = 3.141592653589;
-
   ////////////////////////
   // get HBHE information
   ///////////////////////
   std::vector<edm::Handle<HBHERecHitCollection>> hbhe;
   iEvent.getManyByType(hbhe);
-  bool validHBHE = true;
-  if (!hbhe[0].isValid()) {
+
+  bool validHBHE = hbhe[0].isValid();
+
+  if (!validHBHE) {
     LogDebug(MsgLoggerCat) << "Unable to find any HBHERecHitCollections in event!";
-    validHBHE = false;
   }
 
-  if (validHBHE) {
+  else {
     std::vector<edm::Handle<HBHERecHitCollection>>::iterator ihbhe;
-    const CaloGeometry* geo = geometry.product();
-
     int iHB = 0;
     int iHE = 0;
     for (ihbhe = hbhe.begin(); ihbhe != hbhe.end(); ++ihbhe) {
-      // find max values
-      for (HBHERecHitCollection::const_iterator jhbhe = (*ihbhe)->begin(); jhbhe != (*ihbhe)->end(); ++jhbhe) {
-        HcalDetId cell(jhbhe->id());
-
-        if (cell.subdet() == sdHcalBrl) {
-          const HcalGeometry* cellGeometry =
-              dynamic_cast<const HcalGeometry*>(geo->getSubdetectorGeometry(DetId::Hcal, cell.subdet()));
-          double fPhi = cellGeometry->getPosition(cell).phi();
-          if ((jhbhe->energy()) > maxHBEnergy) {
-            maxHBEnergy = jhbhe->energy();
-            maxHBPhi = fPhi;
-            maxHOPhi = maxHBPhi;
-          }
-        }
-
-        if (cell.subdet() == sdHcalEC) {
-          const HcalGeometry* cellGeometry =
-              dynamic_cast<const HcalGeometry*>(geo->getSubdetectorGeometry(DetId::Hcal, cell.subdet()));
-          double fPhi = cellGeometry->getPosition(cell).phi();
-          if ((jhbhe->energy()) > maxHEEnergy) {
-            maxHEEnergy = jhbhe->energy();
-            maxHEPhi = fPhi;
-          }
-        }
-      }  // end find max values
-
       for (HBHERecHitCollection::const_iterator jhbhe = (*ihbhe)->begin(); jhbhe != (*ihbhe)->end(); ++jhbhe) {
         HcalDetId cell(jhbhe->id());
 
         if (cell.subdet() == sdHcalBrl) {
           ++iHB;
-
-          const HcalGeometry* cellGeometry =
-              dynamic_cast<const HcalGeometry*>(geo->getSubdetectorGeometry(DetId::Hcal, cell.subdet()));
-          double fPhi = cellGeometry->getPosition(cell).phi();
-
-          float deltaphi = maxHBPhi - fPhi;
-          if (fPhi > maxHBPhi) {
-            deltaphi = fPhi - maxHBPhi;
-          }
-          if (deltaphi > PI) {
-            deltaphi = 2.0 * PI - deltaphi;
-          }
-
           mehHcalRes[0]->Fill(jhbhe->energy() - fHBEnergySimHits[cell]);
         }
 
-        if (cell.subdet() == sdHcalEC) {
+        else if (cell.subdet() == sdHcalEC) {
           ++iHE;
-
-          const HcalGeometry* cellGeometry =
-              dynamic_cast<const HcalGeometry*>(geo->getSubdetectorGeometry(DetId::Hcal, cell.subdet()));
-          double fPhi = cellGeometry->getPosition(cell).phi();
-
-          float deltaphi = maxHEPhi - fPhi;
-          if (fPhi > maxHEPhi) {
-            deltaphi = fPhi - maxHEPhi;
-          }
-          if (deltaphi > PI) {
-            deltaphi = 2.0 * PI - deltaphi;
-          }
           mehHcalRes[1]->Fill(jhbhe->energy() - fHEEnergySimHits[cell]);
         }
       }
@@ -716,47 +648,19 @@ void GlobalRecHitsAnalyzer::fillHCal(const edm::Event& iEvent, const edm::EventS
   ///////////////////////
   std::vector<edm::Handle<HFRecHitCollection>> hf;
   iEvent.getManyByType(hf);
-  bool validHF = true;
-  if (!hf[0].isValid()) {
+  bool validHF = hf[0].isValid();
+  if (!validHF) {
     LogDebug(MsgLoggerCat) << "Unable to find any HFRecHitCollections in event!";
-    validHF = false;
-  }
-  if (validHF) {
+  } else {
     std::vector<edm::Handle<HFRecHitCollection>>::iterator ihf;
 
     int iHF = 0;
     for (ihf = hf.begin(); ihf != hf.end(); ++ihf) {
-      // find max values
-      for (HFRecHitCollection::const_iterator jhf = (*ihf)->begin(); jhf != (*ihf)->end(); ++jhf) {
-        HcalDetId cell(jhf->id());
-
-        if (cell.subdet() == sdHcalFwd) {
-          auto cellGeometry = geometry->getSubdetectorGeometry(cell)->getGeometry(cell);
-          double fPhi = cellGeometry->getPosition().phi();
-          if ((jhf->energy()) > maxHFEnergy) {
-            maxHFEnergy = jhf->energy();
-            maxHFPhi = fPhi;
-          }
-        }
-      }  // end find max values
-
       for (HFRecHitCollection::const_iterator jhf = (*ihf)->begin(); jhf != (*ihf)->end(); ++jhf) {
         HcalDetId cell(jhf->id());
 
         if (cell.subdet() == sdHcalFwd) {
           ++iHF;
-
-          auto cellGeometry = geometry->getSubdetectorGeometry(cell)->getGeometry(cell);
-          double fPhi = cellGeometry->getPosition().phi();
-
-          float deltaphi = maxHBPhi - fPhi;
-          if (fPhi > maxHFPhi) {
-            deltaphi = fPhi - maxHFPhi;
-          }
-          if (deltaphi > PI) {
-            deltaphi = 2.0 * PI - deltaphi;
-          }
-
           mehHcalRes[2]->Fill(jhf->energy() - fHFEnergySimHits[cell]);
         }
       }
@@ -774,13 +678,10 @@ void GlobalRecHitsAnalyzer::fillHCal(const edm::Event& iEvent, const edm::EventS
   ///////////////////////
   std::vector<edm::Handle<HORecHitCollection>> ho;
   iEvent.getManyByType(ho);
-  bool validHO = true;
-  if (!ho[0].isValid()) {
+  bool validHO = ho[0].isValid();
+  if (!validHO) {
     LogDebug(MsgLoggerCat) << "Unable to find any HORecHitCollections in event!";
-    validHO = false;
-  }
-
-  if (validHO) {
+  } else {
     std::vector<edm::Handle<HORecHitCollection>>::iterator iho;
 
     int iHO = 0;
@@ -790,17 +691,6 @@ void GlobalRecHitsAnalyzer::fillHCal(const edm::Event& iEvent, const edm::EventS
 
         if (cell.subdet() == sdHcalOut) {
           ++iHO;
-
-          auto cellGeometry = geometry->getSubdetectorGeometry(cell)->getGeometry(cell);
-          double fPhi = cellGeometry->getPosition().phi();
-
-          float deltaphi = maxHOPhi - fPhi;
-          if (fPhi > maxHOPhi) {
-            deltaphi = fPhi - maxHOPhi;
-          }
-          if (deltaphi > PI) {
-            deltaphi = 2.0 * PI - deltaphi;
-          }
           mehHcalRes[3]->Fill(jho->energy() - fHOEnergySimHits[cell]);
         }
       }
@@ -821,12 +711,8 @@ void GlobalRecHitsAnalyzer::fillHCal(const edm::Event& iEvent, const edm::EventS
 
 void GlobalRecHitsAnalyzer::fillTrk(const edm::Event& iEvent, const edm::EventSetup& iSetup) {
   //Retrieve tracker topology from geometry
-  edm::ESHandle<TrackerTopology> tTopoHandle;
-  iSetup.get<TrackerTopologyRcd>().get(tTopoHandle);
-  const TrackerTopology* const tTopo = tTopoHandle.product();
-
+  const TrackerTopology* const tTopo = &iSetup.getData(tTopoToken_);
   std::string MsgLoggerCat = "GlobalRecHitsAnalyzer_fillTrk";
-
   TString eventout;
   if (verbosity > 0)
     eventout = "\nGathering info:";
@@ -834,27 +720,27 @@ void GlobalRecHitsAnalyzer::fillTrk(const edm::Event& iEvent, const edm::EventSe
   // get strip information
   edm::Handle<SiStripMatchedRecHit2DCollection> rechitsmatched;
   iEvent.getByToken(SiStripSrc_Token_, rechitsmatched);
-  bool validstrip = true;
-  if (!rechitsmatched.isValid()) {
+  bool validstrip = rechitsmatched.isValid();
+  if (!validstrip) {
     LogDebug(MsgLoggerCat) << "Unable to find stripmatchedrechits in event!";
-    validstrip = false;
   }
 
   TrackerHitAssociator associate(iEvent, trackerHitAssociatorConfig_);
 
-  edm::ESHandle<TrackerGeometry> pDD;
-  iSetup.get<TrackerDigiGeometryRecord>().get(pDD);
-  if (!pDD.isValid()) {
+  const auto& tGeomHandle = iSetup.getHandle(tGeomToken_);
+  if (!tGeomHandle.isValid()) {
     edm::LogWarning(MsgLoggerCat) << "Unable to find TrackerDigiGeometry in event!";
     return;
   }
-  const TrackerGeometry& tracker(*pDD);
+  const TrackerGeometry& tracker(*tGeomHandle);
 
   if (validstrip) {
     int nStripBrl = 0, nStripFwd = 0;
 
     // loop over det units
-    for (TrackerGeometry::DetContainer::const_iterator it = pDD->dets().begin(); it != pDD->dets().end(); ++it) {
+    for (TrackerGeometry::DetContainer::const_iterator it = tGeomHandle->dets().begin();
+         it != tGeomHandle->dets().end();
+         ++it) {
       uint32_t myid = ((*it)->geographicalId()).rawId();
       DetId detid = ((*it)->geographicalId());
 
@@ -867,7 +753,7 @@ void GlobalRecHitsAnalyzer::fillTrk(const edm::Event& iEvent, const edm::EventSe
             rechitmatchedRange.begin();
         SiStripMatchedRecHit2DCollection::DetSet::const_iterator rechitmatchedRangeIteratorEnd =
             rechitmatchedRange.end();
-        SiStripMatchedRecHit2DCollection::DetSet::const_iterator itermatched = rechitmatchedRangeIteratorBegin;
+        SiStripMatchedRecHit2DCollection::DetSet::const_iterator itermatched;
 
         for (itermatched = rechitmatchedRangeIteratorBegin; itermatched != rechitmatchedRangeIteratorEnd;
              ++itermatched) {
@@ -1038,24 +924,15 @@ void GlobalRecHitsAnalyzer::fillTrk(const edm::Event& iEvent, const edm::EventSe
   //Get RecHits
   edm::Handle<SiPixelRecHitCollection> recHitColl;
   iEvent.getByToken(SiPxlSrc_Token_, recHitColl);
-  bool validpixel = true;
-  if (!recHitColl.isValid()) {
+  bool validpixel = recHitColl.isValid();
+  if (!validpixel) {
     LogDebug(MsgLoggerCat) << "Unable to find SiPixelRecHitCollection in event!";
-    validpixel = false;
-  }
-
-  //Get event setup
-  edm::ESHandle<TrackerGeometry> geom;
-  iSetup.get<TrackerDigiGeometryRecord>().get(geom);
-  if (!geom.isValid()) {
-    edm::LogWarning(MsgLoggerCat) << "Unable to find TrackerDigiGeometry in event!";
-    return;
-  }
-
-  if (validpixel) {
+  } else {
     int nPxlBrl = 0, nPxlFwd = 0;
     //iterate over detunits
-    for (TrackerGeometry::DetContainer::const_iterator it = geom->dets().begin(); it != geom->dets().end(); ++it) {
+    for (TrackerGeometry::DetContainer::const_iterator it = tGeomHandle->dets().begin();
+         it != tGeomHandle->dets().end();
+         ++it) {
       uint32_t myid = ((*it)->geographicalId()).rawId();
       DetId detId = ((*it)->geographicalId());
       int subid = detId.subdetId();
@@ -1188,8 +1065,7 @@ void GlobalRecHitsAnalyzer::fillMuon(const edm::Event& iEvent, const edm::EventS
     eventout = "\nGathering info:";
 
   // get DT information
-  edm::ESHandle<DTGeometry> dtGeom;
-  iSetup.get<MuonGeometryRecord>().get(dtGeom);
+  const auto& dtGeom = iSetup.getHandle(dtGeomToken_);
   if (!dtGeom.isValid()) {
     edm::LogWarning(MsgLoggerCat) << "Unable to find DTMuonGeometryRecord in event!";
     return;
@@ -1197,18 +1073,16 @@ void GlobalRecHitsAnalyzer::fillMuon(const edm::Event& iEvent, const edm::EventS
 
   edm::Handle<edm::PSimHitContainer> dtsimHits;
   iEvent.getByToken(MuDTSimSrc_Token_, dtsimHits);
-  bool validdtsim = true;
-  if (!dtsimHits.isValid()) {
+  bool validdtsim = dtsimHits.isValid();
+  if (!validdtsim) {
     LogDebug(MsgLoggerCat) << "Unable to find dtsimHits in event!";
-    validdtsim = false;
   }
 
   edm::Handle<DTRecHitCollection> dtRecHits;
   iEvent.getByToken(MuDTSrc_Token_, dtRecHits);
-  bool validdtrec = true;
-  if (!dtRecHits.isValid()) {
+  bool validdtrec = dtRecHits.isValid();
+  if (!validdtrec) {
     LogDebug(MsgLoggerCat) << "Unable to find dtRecHits in event!";
-    validdtrec = false;
   }
 
   if (validdtsim && validdtrec) {
@@ -1232,12 +1106,10 @@ void GlobalRecHitsAnalyzer::fillMuon(const edm::Event& iEvent, const edm::EventS
   edm::Handle<CrossingFrame<PSimHit>> cf;
 
   iEvent.getByToken(MuCSCHits_Token_, cf);
-  bool validXFrame = true;
-  if (!cf.isValid()) {
+  bool validXFrame = cf.isValid();
+  if (!validXFrame) {
     LogDebug(MsgLoggerCat) << "Unable to find muo CSC crossingFrame in event!";
-    validXFrame = false;
-  }
-  if (validXFrame) {
+  } else {
     const MixCollection<PSimHit> simHits(cf.product());
 
     // arrange the hits by detUnit
@@ -1247,8 +1119,7 @@ void GlobalRecHitsAnalyzer::fillMuon(const edm::Event& iEvent, const edm::EventS
   }
 
   // get geometry
-  edm::ESHandle<CSCGeometry> hGeom;
-  iSetup.get<MuonGeometryRecord>().get(hGeom);
+  const auto& hGeom = iSetup.getHandle(cscGeomToken_);
   if (!hGeom.isValid()) {
     edm::LogWarning(MsgLoggerCat) << "Unable to find CSCMuonGeometryRecord in event!";
     return;
@@ -1258,13 +1129,10 @@ void GlobalRecHitsAnalyzer::fillMuon(const edm::Event& iEvent, const edm::EventS
   // get rechits
   edm::Handle<CSCRecHit2DCollection> hRecHits;
   iEvent.getByToken(MuCSCSrc_Token_, hRecHits);
-  bool validCSC = true;
-  if (!hRecHits.isValid()) {
+  bool validCSC = hRecHits.isValid();
+  if (!validCSC) {
     LogDebug(MsgLoggerCat) << "Unable to find CSC RecHits in event!";
-    validCSC = false;
-  }
-
-  if (validCSC) {
+  } else {
     const CSCRecHit2DCollection* cscRecHits = hRecHits.product();
 
     int nCSC = 0;
@@ -1299,9 +1167,7 @@ void GlobalRecHitsAnalyzer::fillMuon(const edm::Event& iEvent, const edm::EventS
   // get RPC information
   std::map<double, int> mapsim, maprec;
   std::map<int, double> nmapsim, nmaprec;
-
-  edm::ESHandle<RPCGeometry> rpcGeom;
-  iSetup.get<MuonGeometryRecord>().get(rpcGeom);
+  const auto& rpcGeom = iSetup.getHandle(rpcGeomToken_);
   if (!rpcGeom.isValid()) {
     edm::LogWarning(MsgLoggerCat) << "Unable to find RPCMuonGeometryRecord in event!";
     return;
@@ -1309,18 +1175,16 @@ void GlobalRecHitsAnalyzer::fillMuon(const edm::Event& iEvent, const edm::EventS
 
   edm::Handle<edm::PSimHitContainer> simHit;
   iEvent.getByToken(MuRPCSimSrc_Token_, simHit);
-  bool validrpcsim = true;
-  if (!simHit.isValid()) {
+  bool validrpcsim = simHit.isValid();
+  if (!validrpcsim) {
     LogDebug(MsgLoggerCat) << "Unable to find RPCSimHit in event!";
-    validrpcsim = false;
   }
 
   edm::Handle<RPCRecHitCollection> recHit;
   iEvent.getByToken(MuRPCSrc_Token_, recHit);
-  bool validrpc = true;
-  if (!simHit.isValid()) {
+  bool validrpc = recHit.isValid();
+  if (!validrpc) {
     LogDebug(MsgLoggerCat) << "Unable to find RPCRecHit in event!";
-    validrpc = false;
   }
 
   if (validrpc) {

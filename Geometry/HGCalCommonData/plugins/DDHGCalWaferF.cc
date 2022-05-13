@@ -1,3 +1,9 @@
+///////////////////////////////////////////////////////////////////////////////
+// File: DDHGCalWaferF.cc
+// Description: Geometry factory class for a full silicon Wafer
+// Created by Sunanda Banerjee
+// Extended for rotated wafer by Pruthvi Suryadevara
+///////////////////////////////////////////////////////////////////////////////
 #include "DetectorDescription/Core/interface/DDAlgorithm.h"
 #include "DetectorDescription/Core/interface/DDAlgorithmFactory.h"
 #include "DetectorDescription/Core/interface/DDCurrentNamespace.h"
@@ -35,6 +41,7 @@ private:
   double thick_;                         // Module thickness
   double waferSize_;                     // Wafer size
   double waferSepar_;                    // Sensor separation
+  double waferThick_;                    // Wafer thickness
   std::vector<std::string> layerNames_;  // Names of the layers
   std::vector<std::string> materials_;   // Materials of the layers
   std::vector<double> layerThick_;       // Thickness of layers
@@ -64,9 +71,11 @@ void DDHGCalWaferF::initialize(const DDNumericArguments& nArgs,
   thick_ = nArgs["ModuleThickness"];
   waferSize_ = nArgs["WaferSize"];
   waferSepar_ = nArgs["SensorSeparation"];
+  waferThick_ = nArgs["WaferThickness"];
 #ifdef EDM_ML_DEBUG
   edm::LogVerbatim("HGCalGeom") << "DDHGCalWaferF: Module " << parent().name() << " made of " << material_ << " T "
-                                << thick_ << " Wafer 2r " << waferSize_ << " Half Separation " << waferSepar_;
+                                << thick_ << " Wafer 2r " << waferSize_ << " Half Separation " << waferSepar_ << " T "
+                                << waferThick_;
 #endif
   layerNames_ = vsArgs["LayerNames"];
   materials_ = vsArgs["LayerMaterials"];
@@ -105,7 +114,7 @@ void DDHGCalWaferF::execute(DDCompactView& cpv) {
 
   static constexpr double tol = 0.00001;
   static const double sqrt3 = std::sqrt(3.0);
-  double rM = 0.5 * (waferSize_ + waferSepar_);
+  double rM = 0.5 * waferSize_;
   double RM2 = rM / sqrt3;
   double R = waferSize_ / (3.0 * nCells_);
   double r = 0.5 * R * sqrt3;
@@ -131,7 +140,7 @@ void DDHGCalWaferF::execute(DDCompactView& cpv) {
     edm::LogVerbatim("HGCalGeom") << "[" << k << "] " << xM[k] << ":" << yM[k];
 #endif
 
-  // Then the types
+  // Then the layers
   std::vector<double> xL = {r2, 0, -r2, -r2, 0, r2};
   std::vector<double> yL = {R2, 2 * R2, R2, -R2, -2 * R2, -R2};
   std::vector<DDLogicalPart> glogs(materials_.size());
@@ -139,8 +148,13 @@ void DDHGCalWaferF::execute(DDCompactView& cpv) {
   for (unsigned int l = 0; l < layers_.size(); l++) {
     unsigned int i = layers_[l];
     if (copyNumber_[i] == 1) {
-      zw[0] = -0.5 * layerThick_[i];
-      zw[1] = 0.5 * layerThick_[i];
+      if (layerType_[i] > 0) {
+        zw[0] = -0.5 * waferThick_;
+        zw[1] = 0.5 * waferThick_;
+      } else {
+        zw[0] = -0.5 * layerThick_[i];
+        zw[1] = 0.5 * layerThick_[i];
+      }
       solid = DDSolidFactory::extrudedpolygon(layerNames_[i], xL, yL, zw, zx, zy, scale);
       DDName matN(DDSplit(materials_[i]).first, DDSplit(materials_[i]).second);
       DDMaterial matter(matN);
@@ -165,39 +179,46 @@ void DDHGCalWaferF::execute(DDCompactView& cpv) {
     zi += layerThick_[i];
     thickTot += layerThick_[i];
     if (layerType_[i] > 0) {
+      int n2 = nCells_ / 2;
+      double y0 = (cellType_ >= 3) ? 0.5 : 0.0;
+      double x0 = (cellType_ >= 3) ? 0.5 : 1.0;
+      int voff = (cellType_ >= 3) ? 0 : 1;
+      int uoff = 1 - voff;
+      int cellType = (cellType_ >= 3) ? (cellType_ - 3) : cellType_;
       for (int u = 0; u < 2 * nCells_; ++u) {
         for (int v = 0; v < 2 * nCells_; ++v) {
-          if (((v - u) < nCells_) && (u - v) <= nCells_) {
-            int n2 = nCells_ / 2;
-            double yp = (u - 0.5 * v - n2) * 2 * r;
-            double xp = (1.5 * (v - nCells_) + 1.0) * R;
+          if (((v - u) < (nCells_ + uoff)) && (u - v) < (nCells_ + voff)) {
+            double yp = (u - 0.5 * v - n2 + y0) * 2 * r;
+            double xp = (1.5 * (v - nCells_) + x0) * R;
             int cell(0);
             if ((u == 0) && (v == 0))
               cell = 7;
-            else if ((u == 0) && (v == nCells_ - 1))
+            else if ((u == 0) && (v == nCells_ - voff))
               cell = 8;
-            else if ((u == nCells_) && (v == 2 * nCells_ - 1))
+            else if ((u == nCells_ - uoff) && (v == 2 * nCells_ - 1))
               cell = 9;
-            else if ((u == 2 * nCells_ - 1) && (v == 2 * nCells_ - 1))
+            else if ((u == (2 * nCells_ - 1)) && (v == 2 * nCells_ - 1))
               cell = 10;
-            else if ((u == 2 * nCells_ - 1) && (v == nCells_ - 1))
+            else if ((u == 2 * nCells_ - 1) && (v == (nCells_ - voff)))
               cell = 11;
-            else if ((u == nCells_) && (v == 0))
+            else if ((u == (nCells_ - uoff)) && (v == 0))
               cell = 12;
             else if (u == 0)
               cell = 1;
-            else if ((v - u) == (nCells_ - 1))
+            else if ((v - u) == (nCells_ - voff))
               cell = 4;
             else if (v == (2 * nCells_ - 1))
               cell = 2;
             else if (u == (2 * nCells_ - 1))
               cell = 5;
-            else if ((u - v) == nCells_)
+            else if ((u - v) == (nCells_ - uoff))
               cell = 3;
             else if (v == 0)
               cell = 6;
+            if ((cellType_ >= 3) && (cell != 0))
+              cell += 12;
             DDTranslation tran(xp, yp, 0);
-            int copy = HGCalTypes::packCellTypeUV(cellType_, u, v);
+            int copy = HGCalTypes::packCellTypeUV(cellType, u, v);
             cpv.position(DDName(cellNames_[cell]), glogs[i], copy, tran, rot);
 #ifdef EDM_ML_DEBUG
             edm::LogVerbatim("HGCalGeom")

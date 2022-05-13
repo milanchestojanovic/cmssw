@@ -9,19 +9,19 @@
 #include "SimG4CMS/Muon/interface/SimHitPrinter.h"
 #include "SimDataFormats/TrackingHit/interface/UpdatablePSimHit.h"
 #include "DataFormats/GeometryVector/interface/GlobalPoint.h"
+#include "DataFormats/MuonDetId/interface/MuonSubdetId.h"
+#include "DataFormats/MuonDetId/interface/GEMDetId.h"
+#include "DataFormats/MuonDetId/interface/ME0DetId.h"
+#include "DataFormats/MuonDetId/interface/RPCDetId.h"
 
 #include "SimG4CMS/Muon/interface/MuonG4Numbering.h"
 #include "Geometry/MuonNumbering/interface/MuonGeometryConstants.h"
 #include "Geometry/MuonNumbering/interface/MuonBaseNumber.h"
 #include "Geometry/MuonNumbering/interface/MuonSimHitNumberingScheme.h"
-#include "Geometry/Records/interface/IdealGeometryRecord.h"
 
 #include "SimG4Core/Notification/interface/TrackInformation.h"
 #include "SimG4Core/Notification/interface/G4TrackToParticleID.h"
 #include "SimG4Core/Physics/interface/G4ProcessTypeEnumerator.h"
-
-#include "FWCore/Framework/interface/ESHandle.h"
-#include "FWCore/Framework/interface/EventSetup.h"
 
 #include "G4VProcess.hh"
 #include "G4EventManager.hh"
@@ -37,40 +37,37 @@
 //#define EDM_ML_DEBUG
 
 MuonSensitiveDetector::MuonSensitiveDetector(const std::string& name,
-                                             const edm::EventSetup& es,
+                                             const MuonOffsetMap* offmap,
+                                             const MuonGeometryConstants& constants,
                                              const SensitiveDetectorCatalog& clg,
                                              edm::ParameterSet const& p,
                                              const SimTrackManager* manager)
-    : SensitiveTkDetector(name, es, clg, p),
+    : SensitiveTkDetector(name, clg),
       thePV(nullptr),
       theHit(nullptr),
       theDetUnitId(0),
       newDetUnitId(0),
       theTrackID(0),
+      thePrinter(nullptr),
       theManager(manager) {
-  edm::ParameterSet m_MuonSD = p.getParameter<edm::ParameterSet>("MuonSD");
-  ePersistentCutGeV = m_MuonSD.getParameter<double>("EnergyThresholdForPersistency") / CLHEP::GeV;  //Default 1. GeV
-  allMuonsPersistent = m_MuonSD.getParameter<bool>("AllMuonsPersistent");
-  printHits = m_MuonSD.getParameter<bool>("PrintHits");
-  bool dd4hep = p.getParameter<bool>("g4GeometryDD4hepSource");
-  //
   // Here simply create 1 MuonSlaveSD for the moment
   //
+  bool dd4hep = p.getParameter<bool>("g4GeometryDD4hepSource");
+  edm::ParameterSet muonSD = p.getParameter<edm::ParameterSet>("MuonSD");
+  printHits_ = muonSD.getParameter<bool>("PrintHits");
+  ePersistentCutGeV_ = muonSD.getParameter<double>("EnergyThresholdForPersistency") / CLHEP::GeV;  //Default 1. GeV
+  allMuonsPersistent_ = muonSD.getParameter<bool>("AllMuonsPersistent");
+  haveDemo_ = muonSD.getParameter<bool>("HaveDemoChambers");
+  demoGEM_ = muonSD.getParameter<bool>("UseDemoHitGEM");
+  demoRPC_ = muonSD.getParameter<bool>("UseDemoHitRPC");
+
 #ifdef EDM_ML_DEBUG
-  edm::LogVerbatim("MuonSim") << "create MuonSubDetector " << name << " with dd4hep flag " << dd4hep;
+  edm::LogVerbatim("MuonSim") << "create MuonSubDetector " << name << " with dd4hep flag " << dd4hep
+                              << " Flags for Demonstration chambers " << haveDemo_ << " for GEM " << demoGEM_
+                              << " for RPC " << demoRPC_;
 #endif
   detector = new MuonSubDetector(name);
 
-  //The constants take time to calculate and are needed by many helpers
-  edm::ESHandle<MuonOffsetMap> mom;
-  es.get<IdealGeometryRecord>().get(mom);
-  const MuonOffsetMap* offmap = (mom.isValid()) ? mom.product() : nullptr;
-  edm::LogVerbatim("MuonSim") << "Finds the offset map at " << offmap;
-  edm::ESHandle<MuonGeometryConstants> mdc;
-  es.get<IdealGeometryRecord>().get(mdc);
-  if (!mdc.isValid())
-    throw cms::Exception("MuonSensitiveDetector") << "Cannot find MuonGeometryConstants\n";
-  MuonGeometryConstants constants = *(mdc.product());
   G4String sdet = "unknown";
   if (detector->isEndcap()) {
     theRotation = new MuonEndcapFrameRotation();
@@ -86,17 +83,19 @@ MuonSensitiveDetector::MuonSensitiveDetector(const std::string& name,
     sdet = "ME0";
   } else {
     theRotation = new MuonFrameRotation();
+    if (detector->isBarrel())
+      sdet = "Barrel";
   }
   slaveMuon = new MuonSlaveSD(detector, theManager);
   numbering = new MuonSimHitNumberingScheme(detector, constants);
   g4numbering = new MuonG4Numbering(constants, offmap, dd4hep);
 
-  if (printHits) {
+  if (printHits_) {
     thePrinter = new SimHitPrinter("HitPositionOSCAR.dat");
   }
 
   edm::LogVerbatim("MuonSim") << " of type " << sdet << " <" << GetName() << "> EnergyThresholdForPersistency(GeV) "
-                              << ePersistentCutGeV / CLHEP::GeV << " allMuonsPersistent: " << allMuonsPersistent;
+                              << ePersistentCutGeV_ / CLHEP::GeV << " allMuonsPersistent: " << allMuonsPersistent_;
 
   theG4ProcessTypeEnumerator = new G4ProcessTypeEnumerator;
 }
@@ -132,7 +131,13 @@ bool MuonSensitiveDetector::ProcessHits(G4Step* aStep, G4TouchableHistory* ROhis
 
   if (aStep->GetTotalEnergyDeposit() > 0.) {
     newDetUnitId = setDetUnitId(aStep);
-
+#ifdef EDM_ML_DEBUG
+    G4VPhysicalVolume* vol = aStep->GetPreStepPoint()->GetTouchable()->GetVolume(0);
+    std::string namx = static_cast<std::string>(vol->GetName());
+    std::string name = namx.substr(0, 2);
+    if (name == "RE")
+      edm::LogVerbatim("MuonSim") << "DETID " << namx << " " << RPCDetId(newDetUnitId);
+#endif
     if (newHit(aStep)) {
       saveHit();
       createHit(aStep);
@@ -233,7 +238,7 @@ void MuonSensitiveDetector::createHit(const G4Step* aStep) {
   // Make track persistent
   int thePID = std::abs(theTrack->GetDefinition()->GetPDGEncoding());
   //---VI - in parameters cut in energy is declared but applied to momentum
-  if (thePabs > ePersistentCutGeV || (thePID == 13 && allMuonsPersistent)) {
+  if (thePabs > ePersistentCutGeV_ || (thePID == 13 && allMuonsPersistent_)) {
     TrackInformation* info = cmsTrackInformation(theTrack);
     info->storeTrack(true);
   }
@@ -300,13 +305,15 @@ void MuonSensitiveDetector::updateHit(const G4Step* aStep) {
 
 void MuonSensitiveDetector::saveHit() {
   if (theHit) {
-    if (printHits) {
-      thePrinter->startNewSimHit(detector->name());
-      thePrinter->printId(theHit->detUnitId());
-      thePrinter->printLocal(theHit->entryPoint(), theHit->exitPoint());
+    if (acceptHit(theHit->detUnitId())) {
+      if (printHits_) {
+        thePrinter->startNewSimHit(detector->name());
+        thePrinter->printId(theHit->detUnitId());
+        thePrinter->printLocal(theHit->entryPoint(), theHit->exitPoint());
+      }
+      // hit is included into hit collection
+      slaveMuon->processHits(*theHit);
     }
-    // hit is included into hit collection
-    slaveMuon->processHits(*theHit);
     delete theHit;
     theHit = nullptr;
   }
@@ -345,4 +352,42 @@ Local3DPoint MuonSensitiveDetector::FinalStepPositionVsParent(const G4Step* curr
       theTouchable->GetHistory()->GetTransform(depth - levelsUp).TransformPoint(globalCoordinates);
 
   return ConvertToLocal3DPoint(localCoordinates);
+}
+
+bool MuonSensitiveDetector::acceptHit(uint32_t id) {
+  if (id == 0) {
+#ifdef EDM_ML_DEBUG
+    edm::LogVerbatim("MuonSim") << "DetId " << id << " Flag " << false;
+#endif
+    return false;
+  }
+  bool flag(true);
+  if (haveDemo_) {
+    int subdet = DetId(id).subdetId();
+    if (subdet == MuonSubdetId::GEM) {
+      if (GEMDetId(id).station() == 2)
+        flag = demoGEM_;
+    } else if (subdet == MuonSubdetId::RPC) {
+      if ((RPCDetId(id).region() != 0) && (RPCDetId(id).ring() == 1) && (RPCDetId(id).station() > 2))
+        flag = demoRPC_;
+    }
+  }
+#ifdef EDM_ML_DEBUG
+  int subdet = DetId(id).subdetId();
+  if (subdet == MuonSubdetId::RPC)
+    edm::LogVerbatim("MuonSim") << "DetId " << std::hex << id << std::dec << " RPC " << RPCDetId(id) << " Flag "
+                                << flag;
+  else if (subdet == MuonSubdetId::GEM)
+    edm::LogVerbatim("MuonSim") << "DetId " << std::hex << id << std::dec << " GEM " << GEMDetId(id) << " Flag "
+                                << flag;
+  else if (subdet == MuonSubdetId::ME0)
+    edm::LogVerbatim("MuonSim") << "DetId " << std::hex << id << std::dec << " " << ME0DetId(id) << " Flag " << flag;
+  else if (subdet == MuonSubdetId::CSC)
+    edm::LogVerbatim("MuonSim") << "DetId " << std::hex << id << std::dec << " CSC Flag " << flag;
+  else if (subdet == MuonSubdetId::DT)
+    edm::LogVerbatim("MuonSim") << "DetId " << std::hex << id << std::dec << " DT Flag " << flag;
+  else
+    edm::LogVerbatim("MuonSim") << "DetId " << std::hex << id << std::dec << " Unknown Flag " << flag;
+#endif
+  return flag;
 }

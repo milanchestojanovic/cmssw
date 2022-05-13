@@ -10,7 +10,7 @@
 //         Created:  Wed Jan 12 14:30:44 CST 2011
 //
 
-#include "FWCore/Framework/src/EventSetupsController.h"
+#include "FWCore/Framework/interface/EventSetupsController.h"
 
 #include "FWCore/Concurrency/interface/WaitingTaskHolder.h"
 #include "FWCore/Concurrency/interface/WaitingTaskList.h"
@@ -31,7 +31,7 @@
 namespace edm {
   namespace eventsetup {
 
-    EventSetupsController::EventSetupsController() : taskArena_(tbb::this_task_arena::max_concurrency()) {}
+    EventSetupsController::EventSetupsController() {}
 
     void EventSetupsController::endIOVsAsync(edm::WaitingTaskHolder iEndTask) {
       for (auto& eventSetupRecordIOVQueue : eventSetupRecordIOVQueues_) {
@@ -41,26 +41,24 @@ namespace edm {
 
     std::shared_ptr<EventSetupProvider> EventSetupsController::makeProvider(ParameterSet& iPSet,
                                                                             ActivityRegistry* activityRegistry,
-                                                                            ParameterSet const* eventSetupPset) {
+                                                                            ParameterSet const* eventSetupPset,
+                                                                            unsigned int maxConcurrentIOVs,
+                                                                            bool dumpOptions) {
       // Makes an EventSetupProvider
       // Also parses the prefer information from ParameterSets and puts
       // it in a map that is stored in the EventSetupProvider
       std::shared_ptr<EventSetupProvider> returnValue(
-          makeEventSetupProvider(iPSet, providers_.size(), activityRegistry, &taskArena_));
+          makeEventSetupProvider(iPSet, providers_.size(), activityRegistry));
 
       // Construct the ESProducers and ESSources
       // shared_ptrs to them are temporarily stored in this
       // EventSetupsController and in the EventSetupProvider
       fillEventSetupProvider(*this, *returnValue, iPSet);
 
-      numberOfConcurrentIOVs_.readConfigurationParameters(eventSetupPset);
+      numberOfConcurrentIOVs_.readConfigurationParameters(eventSetupPset, maxConcurrentIOVs, dumpOptions);
 
       providers_.push_back(returnValue);
       return returnValue;
-    }
-
-    void EventSetupsController::setMaxConcurrentIOVs(unsigned int nStreams, unsigned int nConcurrentLumis) {
-      numberOfConcurrentIOVs_.setMaxConcurrentIOVs(nStreams, nConcurrentLumis);
     }
 
     void EventSetupsController::finishConfiguration() {
@@ -412,7 +410,7 @@ namespace edm {
     }
 
     void synchronousEventSetupForInstance(IOVSyncValue const& syncValue,
-                                          tbb::task_group& iGroup,
+                                          oneapi::tbb::task_group& iGroup,
                                           eventsetup::EventSetupsController& espController) {
       FinalWaitingTask waitUntilIOVInitializationCompletes;
 

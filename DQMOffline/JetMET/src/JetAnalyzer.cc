@@ -31,7 +31,6 @@
 #include "DataFormats/L1GlobalTrigger/interface/L1GlobalTriggerReadoutSetup.h"
 #include "DataFormats/L1GlobalTrigger/interface/L1GlobalTriggerReadoutRecord.h"
 
-#include "FWCore/Framework/interface/ESHandle.h"
 #include "DataFormats/Math/interface/deltaR.h"
 #include "RecoJets/JetAssociationAlgorithms/interface/JetTracksAssociationDRCalo.h"
 #include "DataFormats/Math/interface/Point3D.h"
@@ -260,6 +259,8 @@ JetAnalyzer::JetAnalyzer(const edm::ParameterSet& pSet)
   ptThresholdUnc_ = parameters_.getParameter<double>("ptThresholdUnc");
   asymmetryThirdJetCut_ = parameters_.getParameter<double>("asymmetryThirdJetCut");
   balanceThirdJetCut_ = parameters_.getParameter<double>("balanceThirdJetCut");
+
+  l1gtTrigMenuToken_ = esConsumes<edm::Transition::BeginRun>();
 }
 
 // ***********************************************************
@@ -274,7 +275,6 @@ JetAnalyzer::~JetAnalyzer() {
 
 // ***********************************************************
 void JetAnalyzer::bookHistograms(DQMStore::IBooker& ibooker, edm::Run const& iRun, edm::EventSetup const&) {
-  //  dbe_ = edm::Service<DQMStore>().operator->();
   if (jetCleaningFlag_) {
     ibooker.setCurrentFolder("JetMET/Jet/Cleaned" + mInputCollection_.label());
     DirName = "JetMET/Jet/Cleaned" + mInputCollection_.label();
@@ -2233,9 +2233,7 @@ void JetAnalyzer::dqmBeginRun(const edm::Run& iRun, const edm::EventSetup& iSetu
     }
   }
 
-  edm::ESHandle<L1GtTriggerMenu> menuRcd;
-  iSetup.get<L1GtTriggerMenuRcd>().get(menuRcd);
-  const L1GtTriggerMenu* menu = menuRcd.product();
+  const L1GtTriggerMenu* menu = &iSetup.getData(l1gtTrigMenuToken_);
   for (CItAlgo techTrig = menu->gtTechnicalTriggerMap().begin(); techTrig != menu->gtTechnicalTriggerMap().end();
        ++techTrig) {
     if ((techTrig->second).algoName() == m_l1algoname_) {

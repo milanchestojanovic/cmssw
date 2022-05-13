@@ -19,11 +19,20 @@ void TableOutputBranches::defineBranchesFromFirstEvent(const nanoaod::FlatTable 
       case nanoaod::FlatTable::ColumnType::Int:
         m_intBranches.emplace_back(var, tab.columnDoc(i), "I");
         break;
+      case nanoaod::FlatTable::ColumnType::Int8:
+        m_int8Branches.emplace_back(var, tab.columnDoc(i), "B");
+        break;
       case nanoaod::FlatTable::ColumnType::UInt8:
         m_uint8Branches.emplace_back(var, tab.columnDoc(i), "b");
         break;
       case nanoaod::FlatTable::ColumnType::Bool:
         m_uint8Branches.emplace_back(var, tab.columnDoc(i), "O");
+        break;
+      case nanoaod::FlatTable::ColumnType::UInt32:
+        m_uint32Branches.emplace_back(var, tab.columnDoc(i), "i");
+        break;
+      case nanoaod::FlatTable::ColumnType::Double:
+        m_doubleBranches.emplace_back(var, tab.columnDoc(i), "D");
         break;
       default:
         throw cms::Exception("LogicError", "Unsupported type");
@@ -49,7 +58,8 @@ void TableOutputBranches::branch(TTree &tree) {
     }
   }
   std::string varsize = m_singleton ? "" : "[n" + m_baseName + "]";
-  for (std::vector<NamedBranchPtr> *branches : {&m_floatBranches, &m_intBranches, &m_uint8Branches}) {
+  for (std::vector<NamedBranchPtr> *branches :
+       {&m_floatBranches, &m_intBranches, &m_int8Branches, &m_uint8Branches, &m_uint32Branches, &m_doubleBranches}) {
     for (auto &pair : *branches) {
       std::string branchName = makeBranchName(m_baseName, pair.name);
       pair.branch =
@@ -59,14 +69,14 @@ void TableOutputBranches::branch(TTree &tree) {
   }
 }
 
-void TableOutputBranches::fill(const edm::EventForOutput &iEvent, TTree &tree, bool extensions) {
+void TableOutputBranches::fill(const edm::OccurrenceForOutput &iWhatever, TTree &tree, bool extensions) {
   if (m_extension != DontKnowYetIfMainOrExtension) {
     if (extensions != m_extension)
       return;  // do nothing, wait to be called with the proper flag
   }
 
   edm::Handle<nanoaod::FlatTable> handle;
-  iEvent.getByToken(m_token, handle);
+  iWhatever.getByToken(m_token, handle);
   const nanoaod::FlatTable &tab = *handle;
   m_counter = tab.size();
   m_singleton = tab.singleton();
@@ -89,6 +99,12 @@ void TableOutputBranches::fill(const edm::EventForOutput &iEvent, TTree &tree, b
     fillColumn<float>(pair, tab);
   for (auto &pair : m_intBranches)
     fillColumn<int>(pair, tab);
+  for (auto &pair : m_int8Branches)
+    fillColumn<int8_t>(pair, tab);
   for (auto &pair : m_uint8Branches)
     fillColumn<uint8_t>(pair, tab);
+  for (auto &pair : m_uint32Branches)
+    fillColumn<uint32_t>(pair, tab);
+  for (auto &pair : m_doubleBranches)
+    fillColumn<double>(pair, tab);
 }

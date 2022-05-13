@@ -15,7 +15,6 @@
 // user include files
 
 #include "FWCore/Framework/interface/Frameworkfwd.h"
-#include "FWCore/Framework/interface/EDAnalyzer.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
@@ -90,6 +89,7 @@ private:
   edm::EDGetTokenT<RPCDigiCollection> rpctpgSource_token_;
   edm::InputTag rpctfSource_;
   edm::EDGetTokenT<L1MuGMTReadoutCollection> rpctfSource_token_;
+  edm::ESGetToken<RPCGeometry, MuonGeometryRecord> rpcgeomToken_;
 };
 
 #endif

@@ -39,11 +39,14 @@
 #include "DataFormats/NanoAOD/interface/FlatTable.h"
 #include "DataFormats/NanoAOD/interface/UniqueString.h"
 #include "PhysicsTools/NanoAOD/plugins/TableOutputBranches.h"
+#include "PhysicsTools/NanoAOD/plugins/LumiOutputBranches.h"
 #include "PhysicsTools/NanoAOD/plugins/TriggerOutputBranches.h"
 #include "PhysicsTools/NanoAOD/plugins/EventStringOutputBranches.h"
 #include "PhysicsTools/NanoAOD/plugins/SummaryTableOutputBranches.h"
 
 #include <iostream>
+
+#include "oneapi/tbb/task_arena.h"
 
 class NanoAODOutputModule : public edm::one::OutputModule<> {
 public:
@@ -126,6 +129,8 @@ private:
 
   std::vector<SummaryTableOutputBranches> m_runTables;
   std::vector<SummaryTableOutputBranches> m_lumiTables;
+  std::vector<LumiOutputBranches> m_lumiTables2;
+  std::vector<TableOutputBranches> m_runFlatTables;
 
   std::vector<std::pair<std::string, edm::EDGetToken>> m_nanoMetadata;
 };
@@ -215,7 +220,7 @@ void NanoAODOutputModule::write(edm::EventForOutput const& iEvent) {
   // fill event branches
   for (auto& t : m_evstrings)
     t.fill(iEvent, *m_tree);
-  m_tree->Fill();
+  tbb::this_task_arena::isolate([&] { m_tree->Fill(); });
 
   m_processHistoryRegistry.registerProcessHistory(iEvent.processHistory());
 }
@@ -229,7 +234,12 @@ void NanoAODOutputModule::writeLuminosityBlock(edm::LuminosityBlockForOutput con
   for (auto& t : m_lumiTables)
     t.fill(iLumi, *m_lumiTree);
 
-  m_lumiTree->Fill();
+  for (unsigned int extensions = 0; extensions <= 1; ++extensions) {
+    for (auto& t : m_lumiTables2)
+      t.fill(iLumi, *m_lumiTree, extensions);
+  }
+
+  tbb::this_task_arena::isolate([&] { m_lumiTree->Fill(); });
 
   m_processHistoryRegistry.registerProcessHistory(iLumi.processHistory());
 }
@@ -242,6 +252,11 @@ void NanoAODOutputModule::writeRun(edm::RunForOutput const& iRun) {
 
   for (auto& t : m_runTables)
     t.fill(iRun, *m_runTree);
+
+  for (unsigned int extensions = 0; extensions <= 1; ++extensions) {
+    for (auto& t : m_runFlatTables)
+      t.fill(iRun, *m_runTree, extensions);
+  }
 
   edm::Handle<nanoaod::UniqueString> hstring;
   for (const auto& p : m_nanoMetadata) {
@@ -256,7 +271,7 @@ void NanoAODOutputModule::writeRun(edm::RunForOutput const& iRun) {
     }
   }
 
-  m_runTree->Fill();
+  tbb::this_task_arena::isolate([&] { m_runTree->Fill(); });
 
   m_processHistoryRegistry.registerProcessHistory(iRun.processHistory());
 }
@@ -293,6 +308,8 @@ void NanoAODOutputModule::openFile(edm::FileBlock const&) {
   m_evstrings.clear();
   m_runTables.clear();
   m_lumiTables.clear();
+  m_lumiTables2.clear();
+  m_runFlatTables.clear();
   const auto& keeps = keptProducts();
   for (const auto& keep : keeps[edm::InEvent]) {
     if (keep.first->className() == "nanoaod::FlatTable")
@@ -311,6 +328,8 @@ void NanoAODOutputModule::openFile(edm::FileBlock const&) {
       m_lumiTables.push_back(SummaryTableOutputBranches(keep.first, keep.second));
     else if (keep.first->className() == "nanoaod::UniqueString" && keep.first->moduleLabel() == "nanoMetadata")
       m_nanoMetadata.emplace_back(keep.first->productInstanceName(), keep.second);
+    else if (keep.first->className() == "nanoaod::FlatTable")
+      m_lumiTables2.push_back(LumiOutputBranches(keep.first, keep.second));
     else
       throw cms::Exception(
           "Configuration",
@@ -322,6 +341,8 @@ void NanoAODOutputModule::openFile(edm::FileBlock const&) {
       m_runTables.push_back(SummaryTableOutputBranches(keep.first, keep.second));
     else if (keep.first->className() == "nanoaod::UniqueString" && keep.first->moduleLabel() == "nanoMetadata")
       m_nanoMetadata.emplace_back(keep.first->productInstanceName(), keep.second);
+    else if (keep.first->className() == "nanoaod::FlatTable")
+      m_runFlatTables.emplace_back(keep.first, keep.second);
     else
       throw cms::Exception("Configuration",
                            "NanoAODOutputModule cannot handle class " + keep.first->className() + " in Run branch");

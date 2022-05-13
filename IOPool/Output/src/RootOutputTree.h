@@ -23,7 +23,11 @@ class TBranch;
 namespace edm {
   class RootOutputTree {
   public:
-    RootOutputTree(std::shared_ptr<TFile> filePtr, BranchType const& branchType, int splitLevel, int treeMaxVirtualSize);
+    RootOutputTree(std::shared_ptr<TFile> filePtr,
+                   BranchType const& branchType,
+                   int splitLevel,
+                   int treeMaxVirtualSize,
+                   std::string const& processName = std::string());
 
     ~RootOutputTree() {}
 
@@ -68,6 +72,8 @@ namespace edm {
     bool checkSplitLevelsAndBasketSizes(TTree* inputTree) const;
 
     bool checkIfFastClonable(TTree* inputTree) const;
+
+    void setSubBranchBasketSizes(TTree* inputTree) const;
 
     bool checkEntriesInReadBranches(Long64_t expectedNumberOfEntries) const;
 

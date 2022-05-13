@@ -16,50 +16,88 @@
 //
 //
 
+// system include files
+#include <memory>
+
+// user include files
+#include "CalibFormats/SiStripObjects/interface/SiStripQuality.h"
 #include "CalibTracker/SiStripCommon/interface/SiStripDetInfoFileReader.h"
-#include "CalibTracker/SiStripESProducers/interface/SiStripQualityHelpers.h"
+#include "CalibTracker/SiStripQuality/interface/SiStripQualityWithFromFedErrorsHelper.h"
 #include "CommonTools/TrackerMap/interface/TrackerMap.h"
+#include "DQM/SiStripCommon/interface/TkHistoMap.h"
+#include "DQMServices/Core/interface/DQMEDHarvester.h"
 #include "DataFormats/SiStripDetId/interface/StripSubdetector.h"
 #include "DataFormats/TrackerCommon/interface/TrackerTopology.h"
-#include "DQM/SiStripCommon/interface/TkHistoMap.h"
+#include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
+#include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
+#include "Geometry/Records/interface/TrackerTopologyRcd.h"
 
-#include "CalibTracker/SiStripQuality/plugins/SiStripQualityStatistics.h"
+class SiStripFedCabling;
+
+class SiStripQualityStatistics : public DQMEDHarvester {
+public:
+  explicit SiStripQualityStatistics(const edm::ParameterSet&);
+  ~SiStripQualityStatistics() override = default;
+
+  void endRun(edm::Run const&, edm::EventSetup const&) override;
+  void dqmEndJob(DQMStore::IBooker&, DQMStore::IGetter&) override;
+
+  static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
+
+private:
+  void updateAndSave(const SiStripQuality* siStripQuality);
+  void SetBadComponents(int, int, SiStripQuality::BadComponent&);
+
+  edm::RunID run_;
+  std::string dataLabel_;
+  const std::string TkMapFileName_;
+  const bool saveTkHistoMap_;
+  //Global Info
+  int NTkBadComponent[4];  //k: 0=BadModule, 1=BadFiber, 2=BadApv, 3=BadStrips
+  int NBadComponent[4][19][4];
+  //legend: NBadComponent[i][j][k]= SubSystem i, layer/disk/wheel j, BadModule/Fiber/Apv k
+  //     i: 0=TIB, 1=TID, 2=TOB, 3=TEC
+  //     k: 0=BadModule, 1=BadFiber, 2=BadApv, 3=BadStrips
+  std::stringstream ssV[4][19];
+
+  TrackerMap *tkMap, *tkMapFullIOVs;
+  SiStripDetInfo detInfo_;
+  std::unique_ptr<TkHistoMap> tkhisto;
+  const edm::ESGetToken<TrackerTopology, TrackerTopologyRcd> tTopoToken_;
+  const edm::ESGetToken<TkDetMap, TrackerTopologyRcd> tkDetMapToken_;
+  std::unique_ptr<TrackerTopology> tTopo_;
+  SiStripQualityWithFromFedErrorsHelper withFedErrHelper_;
+};
 
 SiStripQualityStatistics::SiStripQualityStatistics(const edm::ParameterSet& iConfig)
-    : m_cacheID_(0),
-      dataLabel_(iConfig.getUntrackedParameter<std::string>("dataLabel", "")),
-      TkMapFileName_(iConfig.getUntrackedParameter<std::string>("TkMapFileName", "")),
+    : TkMapFileName_(iConfig.getUntrackedParameter<std::string>("TkMapFileName", "")),
       saveTkHistoMap_(iConfig.getUntrackedParameter<bool>("SaveTkHistoMap", true)),
       tkMap(nullptr),
       tkMapFullIOVs(nullptr),
-      addBadCompFromFedErr_(iConfig.getUntrackedParameter<bool>("AddBadComponentsFromFedErrors", false)),
-      fedErrCutoff_(float(iConfig.getUntrackedParameter<double>("FedErrorBadComponentsCutoff", 0.8))),
       tTopoToken_(esConsumes<edm::Transition::EndRun>()),
       tkDetMapToken_(esConsumes<edm::Transition::EndRun>()),
-      stripQualityToken_(esConsumes<edm::Transition::EndRun>()),
-      fedCablingToken_(addBadCompFromFedErr_ ? decltype(fedCablingToken_){esConsumes<edm::Transition::EndRun>()}
-                                             : decltype(fedCablingToken_){}) {
-  reader = new SiStripDetInfoFileReader(
-      iConfig
-          .getUntrackedParameter<edm::FileInPath>("file",
-                                                  edm::FileInPath("CalibTracker/SiStripCommon/data/SiStripDetInfo.dat"))
+      withFedErrHelper_{iConfig, consumesCollector(), true} {
+  detInfo_ = SiStripDetInfoFileReader::read(
+      iConfig.getUntrackedParameter<edm::FileInPath>("file", edm::FileInPath(SiStripDetInfoFileReader::kDefaultFile))
           .fullPath());
 
   tkMapFullIOVs = new TrackerMap("BadComponents");
   tkhisto = nullptr;
 }
 
-SiStripQualityStatistics::~SiStripQualityStatistics() {}
+void SiStripQualityStatistics::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+  edm::ParameterSetDescription desc;
+  desc.addUntracked<std::string>("TkMapFileName", "");
+  desc.addUntracked<bool>("SaveTkHistoMap", true);
+  desc.addUntracked<edm::FileInPath>("file", edm::FileInPath(SiStripDetInfoFileReader::kDefaultFile));
+  SiStripQualityWithFromFedErrorsHelper::fillDescription(desc);
+  descriptions.add("siStripQualityStatistics", desc);
+}
 
 void SiStripQualityStatistics::dqmEndJob(DQMStore::IBooker& booker, DQMStore::IGetter& getter) {
-  if (addBadCompFromFedErr_) {
-    SiStripQuality mergedQuality{*siStripQuality_};
-    auto fedErrQuality = sistrip::badStripFromFedErr(getter, *fedCabling_, fedErrCutoff_);
-    mergedQuality.add(fedErrQuality.get());
-    mergedQuality.cleanUp();
-    mergedQuality.fillBadComponents();
-    updateAndSave(&mergedQuality);
+  if (withFedErrHelper_.addBadCompFromFedErr()) {
+    updateAndSave(&withFedErrHelper_.getMergedQuality(getter));
   }
   std::string filename = TkMapFileName_;
   if (!filename.empty()) {
@@ -75,22 +113,15 @@ void SiStripQualityStatistics::dqmEndJob(DQMStore::IBooker& booker, DQMStore::IG
 }
 
 void SiStripQualityStatistics::endRun(edm::Run const& run, edm::EventSetup const& iSetup) {
-  tTopo_ = &iSetup.getData(tTopoToken_);
+  tTopo_ = std::make_unique<TrackerTopology>(iSetup.getData(tTopoToken_));
   if ((!tkhisto) && (!TkMapFileName_.empty())) {
     //here the baseline (the value of the empty,not assigned bins) is put to -1 (default is zero)
     tkhisto = std::make_unique<TkHistoMap>(&iSetup.getData(tkDetMapToken_), "BadComp", "BadComp", -1.);
   }
 
-  if (stripQualityWatcher_.check(iSetup)) {
+  if (withFedErrHelper_.endRun(iSetup) && !withFedErrHelper_.addBadCompFromFedErr()) {
     run_ = run.id();
-
-    const auto stripQuality = &iSetup.getData(stripQualityToken_);
-    if (!addBadCompFromFedErr_) {
-      updateAndSave(stripQuality);
-    } else {
-      siStripQuality_ = stripQuality;
-      fedCabling_ = &iSetup.getData(fedCablingToken_);
-    }
+    updateAndSave(&iSetup.getData(withFedErrHelper_.qualityToken()));
   }
 }
 
@@ -109,7 +140,7 @@ void SiStripQualityStatistics::updateAndSave(const SiStripQuality* siStripQualit
   tkMap = new TrackerMap("BadComponents");
 
   std::stringstream ss;
-  std::vector<uint32_t> detids = reader->getAllDetIds();
+  std::vector<uint32_t> detids = detInfo_.getAllDetIds();
   std::vector<uint32_t>::const_iterator idet = detids.begin();
   for (; idet != detids.end(); ++idet) {
     ss << "detid " << (*idet) << " IsModuleUsable " << siStripQuality->IsModuleUsable((*idet)) << "\n";
@@ -134,7 +165,7 @@ void SiStripQualityStatistics::updateAndSave(const SiStripQuality* siStripQualit
                             ((BC[i].BadApvs >> 2) & 0x1) + ((BC[i].BadApvs >> 1) & 0x1) + ((BC[i].BadApvs) & 0x1);
 
     //&&&&&&&&&&&&&&&&&
-    //Single SubSyste
+    //Single SubSystem
     //&&&&&&&&&&&&&&&&&
     int component;
     DetId detectorId = DetId(BC[i].detid);
@@ -214,7 +245,7 @@ void SiStripQualityStatistics::updateAndSave(const SiStripQuality* siStripQualit
       percentage += range;
     }
     if (percentage != 0)
-      percentage /= 128. * reader->getNumberOfApvsAndStripLength(detid).first;
+      percentage /= 128. * detInfo_.getNumberOfApvsAndStripLength(detid).first;
     if (percentage > 1)
       edm::LogError("SiStripQualityStatistics") << "PROBLEM detid " << detid << " value " << percentage << std::endl;
 
@@ -229,8 +260,7 @@ void SiStripQualityStatistics::updateAndSave(const SiStripQuality* siStripQualit
   //&&&&&&&&&&&&&&&&&&
 
   ss.str("");
-  ss << "\n-----------------\nNew IOV starting from run " << run_.run() << " chacheID " << m_cacheID_
-     << "\n-----------------\n";
+  ss << "\n-----------------\nNew IOV starting from run " << run_.run() << "\n-----------------\n";
   ss << "\n-----------------\nGlobal Info\n-----------------";
   ss << "\nBadComponent \t   Modules \tFibers "
         "\tApvs\tStrips\n----------------------------------------------------------------";
@@ -304,7 +334,7 @@ void SiStripQualityStatistics::updateAndSave(const SiStripQuality* siStripQualit
 }
 
 void SiStripQualityStatistics::SetBadComponents(int i, int component, SiStripQuality::BadComponent& BC) {
-  int napv = reader->getNumberOfApvsAndStripLength(BC.detid).first;
+  int napv = detInfo_.getNumberOfApvsAndStripLength(BC.detid).first;
 
   ssV[i][component] << "\n\t\t " << BC.detid << " \t " << BC.BadModule << " \t " << ((BC.BadFibers) & 0x1) << " ";
   if (napv == 4)
@@ -339,3 +369,6 @@ void SiStripQualityStatistics::SetBadComponents(int i, int component, SiStripQua
     tkMap->fillc(BC.detid, 0x0);
   }
 }
+
+#include "FWCore/Framework/interface/MakerMacros.h"
+DEFINE_FWK_MODULE(SiStripQualityStatistics);

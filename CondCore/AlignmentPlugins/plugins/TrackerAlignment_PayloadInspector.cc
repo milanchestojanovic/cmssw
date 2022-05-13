@@ -210,6 +210,7 @@ namespace {
 
       canvas.cd();
 
+      canvas.SetTopMargin(0.06);
       canvas.SetLeftMargin(0.17);
       canvas.SetRightMargin(0.05);
       canvas.SetBottomMargin(0.15);
@@ -254,22 +255,29 @@ namespace {
         tSubdet.DrawLatex(theX_, 0.20, Form("%s", (AlignmentPI::getStringFromPart(thePart)).c_str()));
       }
 
-      TLegend legend = TLegend(0.58, 0.82, 0.95, 0.9);
-      legend.SetTextSize(0.03);
-      legend.SetHeader("Alignment comparison", "C");  // option "C" allows to center the header
-      legend.AddEntry(
-          compare.get(),
-          ("IOV:" + std::to_string(std::get<0>(lastiov)) + "-" + std::to_string(std::get<0>(firstiov))).c_str(),
-          "PL");
+      TLegend legend = TLegend(0.17, 0.86, 0.95, 0.94);
+      if (this->m_plotAnnotations.ntags == 2) {
+        legend.SetHeader("#bf{Two Tags Comparison}", "C");  // option "C" allows to center the header
+        legend.AddEntry(
+            compare.get(),
+            ("#splitline{" + tagname1 + " : " + firstIOVsince + "}{" + tagname2 + " : " + lastIOVsince + "}").c_str(),
+            "PL");
+      } else {
+        legend.SetHeader(("tag: #bf{" + tagname1 + "}").c_str(), "C");  // option "C" allows to center the header
+        legend.AddEntry(compare.get(),
+                        ("#splitline{IOV since: " + firstIOVsince + "}{IOV since: " + lastIOVsince + "}").c_str(),
+                        "PL");
+      }
+      legend.SetTextSize(0.020);
       legend.Draw("same");
 
-      TLatex t1;
-      t1.SetNDC();
-      t1.SetTextAlign(21);
-      t1.SetTextSize(0.05);
-      t1.DrawLatex(0.2, 0.93, Form("%s", s_coord.c_str()));
-      t1.SetTextColor(kBlue);
-      t1.DrawLatex(0.6, 0.93, Form("IOV %s - %s ", lastIOVsince.c_str(), firstIOVsince.c_str()));
+      auto ltx = TLatex();
+      ltx.SetTextFont(62);
+      ltx.SetTextSize(0.042);
+      ltx.SetTextAlign(11);
+      ltx.DrawLatexNDC(gPad->GetLeftMargin(),
+                       1 - gPad->GetTopMargin() + 0.01,
+                       ("Tracker Alignment Comparison:#color[4]{" + s_coord + "}").c_str());
 
       std::string fileName(this->m_imageFileName);
       canvas.SaveAs(fileName.c_str());
@@ -305,11 +313,11 @@ namespace {
   //******************************************//
 
   template <AlignmentPI::partitions q>
-  class TrackerAlignmentSummary : public PlotImage<Alignments, SINGLE_IOV> {
+  class TrackerAlignmentSummary : public PlotImage<Alignments, MULTI_IOV> {
   public:
     TrackerAlignmentSummary()
-        : PlotImage<Alignments, SINGLE_IOV>("Comparison of all coordinates between two geometries for " +
-                                            getStringFromPart(q)) {}
+        : PlotImage<Alignments, MULTI_IOV>("Comparison of all coordinates between two geometries for " +
+                                           getStringFromPart(q)) {}
 
     bool fill() override {
       auto tag = PlotBase::getTag<0>();
@@ -995,10 +1003,10 @@ namespace {
         final->SetMarkerSize(2.5);
         t1.SetTextColor(kRed);
         initial->Draw();
-        t1.DrawLatex(x0i, y0i - 0.5, Form("(%.2f,%.2f)", x0i, y0i));
+        t1.DrawLatex(x0i, y0i + (y0i > y0f ? 0.3 : -0.5), Form("(%.2f,%.2f)", x0i, y0i));
         final->Draw("same");
         t1.SetTextColor(kBlue);
-        t1.DrawLatex(x0f, y0f + 0.3, Form("(%.2f,%.2f)", x0f, y0f));
+        t1.DrawLatex(x0f, y0f + (y0i > y0f ? -0.5 : 0.3), Form("(%.2f,%.2f)", x0f, y0f));
       }
 
       // fourth pad is a special case for the z coordinate
@@ -1032,10 +1040,10 @@ namespace {
         final->SetMarkerSize(2.5);
         initial->Draw();
         t1.SetTextColor(kRed);
-        t1.DrawLatex(c - 1, z0i - 1.5, Form("(%.2f)", z0i));
+        t1.DrawLatex(c - 1, z0i + (z0i > z0f ? 1. : -1.5), Form("(%.2f)", z0i));
         final->Draw("same");
         t1.SetTextColor(kBlue);
-        t1.DrawLatex(c - 1, z0f + 1., Form("(%.2f)", z0f));
+        t1.DrawLatex(c - 1, z0f + (z0i > z0f ? -1.5 : 1), Form("(%.2f)", z0f));
       }
 
       std::string fileName(this->m_imageFileName);

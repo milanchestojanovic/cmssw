@@ -1,4 +1,4 @@
-#!/bin/env python
+#!/bin/env python3
 
 import os
 import sys
@@ -31,7 +31,7 @@ def compare(base_dir, pr_dir, output_dir, files, pr_number, test_number, release
             print('Running comparison:')
             print(' '.join(command))
             
-            output = subprocess.check_output(command)
+            output = subprocess.check_output(command).decode()
 
             output_elements = output.split('\n')[1:]
             base_output_filename = output_elements[0]
@@ -64,8 +64,8 @@ def get_file_pairs(base_dir, pr_dir):
 
     # Remove base directories and leave
     # only parts of paths that are same
-    base_files = map(lambda x: os.path.relpath(x, base_dir), base_files)
-    pr_files = map(lambda x: os.path.relpath(x, pr_dir), pr_files)
+    base_files = [ os.path.relpath(x, base_dir) for x in base_files ]
+    pr_files =   [ os.path.relpath(x, pr_dir) for x in pr_files ]
     
     # Find intersection
     return [value for value in base_files if value in pr_files]

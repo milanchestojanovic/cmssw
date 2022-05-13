@@ -66,21 +66,6 @@ void Vertex::fill(Error4D& err) const {
       err(i, j) = covariance_[idx++];
 }
 
-size_t Vertex::tracksSize() const { return weights_.size(); }
-
-Vertex::trackRef_iterator Vertex::tracks_begin() const { return tracks_.begin(); }
-
-Vertex::trackRef_iterator Vertex::tracks_end() const {
-  //   if ( !(tracks_.size() ) ) createTracks();
-  return tracks_.end();
-  // return weights_.keys().end();
-}
-
-void Vertex::add(const TrackBaseRef& r, float w) {
-  tracks_.push_back(r);
-  weights_.push_back(w * 255);
-}
-
 void Vertex::add(const TrackBaseRef& r, const Track& refTrack, float w) {
   tracks_.push_back(r);
   refittedTracks_.push_back(refTrack);
@@ -98,7 +83,7 @@ TrackBaseRef Vertex::originalTrack(const Track& refTrack) const {
     throw cms::Exception("Vertex") << "No refitted tracks stored in vertex\n";
   std::vector<Track>::const_iterator it = find_if(refittedTracks_.begin(), refittedTracks_.end(), TrackEqual(refTrack));
   if (it == refittedTracks_.end())
-    throw cms::Exception("Vertex") << "Refitted track not found in list\n";
+    throw cms::Exception("Vertex") << "Refitted track not found in list.\n pt used for comparison: " << refTrack.pt();
   size_t pos = it - refittedTracks_.begin();
   return tracks_[pos];
 }

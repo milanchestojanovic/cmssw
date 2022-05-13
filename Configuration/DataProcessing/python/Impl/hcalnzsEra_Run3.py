@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 _hcalnzsEra_Run3_
 
@@ -17,7 +17,6 @@ class hcalnzsEra_Run3(hcalnzs):
         hcalnzs.__init__(self)
         self.recoSeq=':reconstruction_HcalNZS'
         self.cbSc='pp'
-        self.addEI=True
         self.eras = Run3
         self.promptCustoms += [ 'Configuration/DataProcessing/RecoTLR.customisePostEra_Run3' ]
         self.expressCustoms += [ 'Configuration/DataProcessing/RecoTLR.customisePostEra_Run3' ]

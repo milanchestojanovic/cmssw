@@ -2,7 +2,8 @@ from __future__ import print_function
 import FWCore.ParameterSet.Config as cms
 import sys
 
-process = cms.Process("CASTORDQM")
+from Configuration.Eras.Era_Run3_cff import Run3
+process = cms.Process("CASTORDQM", Run3)
 
 unitTest=False
 if 'unitTest=True' in sys.argv:
@@ -77,36 +78,29 @@ process.castorDigis = castorDigis.clone()
 
 from DQMServices.Core.DQMEDAnalyzer import DQMEDAnalyzer
 process.castorMonitor = DQMEDAnalyzer("CastorMonitorModule",
-                           ### GLOBAL VARIABLES
+   ### GLOBAL VARIABLES
    debug = cms.untracked.int32(0), #(=0 - no messages)
-                           # Turn on/off timing diagnostic
-                           showTiming          = cms.untracked.bool(False),
-
-                           # Define Labels
-     l1tStage2uGtSource = cms.InputTag("gtStage2Digis"),
-     tagTriggerResults   = cms.InputTag('TriggerResults','','HLT'),
-    HltPaths  = cms.vstring("HLT_ZeroBias","HLT_Random"),
-
-                           digiLabel            = cms.InputTag("castorDigis"),
-                           rawLabel             = cms.InputTag("rawDataCollector"),
-                           unpackerReportLabel  = cms.InputTag("castorDigis"),
-                           CastorRecHitLabel    = cms.InputTag("castorreco"),
-                           CastorTowerLabel     = cms.InputTag("CastorTowerReco"),
-                           CastorBasicJetsLabel = cms.InputTag("ak7CastorJets"),
-                           CastorJetIDLabel     = cms.InputTag("ak7CastorJetID"),
-
-                           DataIntMonitor= cms.untracked.bool(True),
-                           TowerJetMonitor= cms.untracked.bool(True),
-
-                           DigiMonitor = cms.untracked.bool(True),
-
-                           RecHitMonitor = cms.untracked.bool(True),
-
-
-#                           LEDMonitor = cms.untracked.bool(True),
-#                           LEDPerChannel = cms.untracked.bool(True),
-                           FirstSignalBin = cms.untracked.int32(0),
-                           LastSignalBin = cms.untracked.int32(9)
+   # Turn on/off timing diagnostic
+   showTiming          = cms.untracked.bool(False),
+   # Define Labels
+   l1tStage2uGtSource = cms.InputTag("gtStage2Digis"),
+   tagTriggerResults   = cms.InputTag('TriggerResults','','HLT'),
+   HltPaths  = cms.vstring("HLT_ZeroBias","HLT_Random"),
+   digiLabel            = cms.InputTag("castorDigis"),
+   rawLabel             = cms.InputTag("rawDataCollector"),
+   unpackerReportLabel  = cms.InputTag("castorDigis"),
+   CastorRecHitLabel    = cms.InputTag("castorreco"),
+   CastorTowerLabel     = cms.InputTag("CastorTowerReco"),
+   CastorBasicJetsLabel = cms.InputTag("ak7CastorJets"),
+   CastorJetIDLabel     = cms.InputTag("ak7CastorJetID"),
+   DataIntMonitor= cms.untracked.bool(True),
+   TowerJetMonitor= cms.untracked.bool(True),
+   DigiMonitor = cms.untracked.bool(True),
+   RecHitMonitor = cms.untracked.bool(True),
+#  LEDMonitor = cms.untracked.bool(True),
+#  LEDPerChannel = cms.untracked.bool(True),
+   FirstSignalBin = cms.untracked.int32(0),
+   LastSignalBin = cms.untracked.int32(9)
 )
 
 #-----------------------------
@@ -127,8 +121,8 @@ process.p = cms.Path(process.castorDigis*process.castorreco*process.castorMonito
 #process.p = cms.Path(process.castorMonitor*process.dqmEnv*process.dqmSaver*process.dqmSaverPB)
 
 
-process.castorDigis.InputLabel = cms.InputTag("rawDataCollector")
-process.castorMonitor.rawLabel = cms.InputTag("rawDataCollector")
+process.castorDigis.InputLabel = "rawDataCollector"
+process.castorMonitor.rawLabel = "rawDataCollector"
     
 #--------------------------------------------------
 # Heavy Ion Specific Fed Raw Data Collection Label
@@ -137,10 +131,13 @@ process.castorMonitor.rawLabel = cms.InputTag("rawDataCollector")
 print("Running with run type = ", process.runType.getRunTypeName())
 
 if (process.runType.getRunType() == process.runType.hi_run):
-    process.castorDigis.InputLabel = cms.InputTag("rawDataRepacker")
-    process.castorMonitor.rawLabel = cms.InputTag("rawDataRepacker")
+    process.castorDigis.InputLabel = "rawDataRepacker"
+    process.castorMonitor.rawLabel = "rawDataRepacker"
 
 
 ### process customizations included here
 from DQM.Integration.config.online_customizations_cfi import *
+print("Final Source settings:", process.source)
 process = customise(process)
+
+

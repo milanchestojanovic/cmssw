@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 from __future__ import print_function
 import optparse
@@ -8,11 +8,7 @@ import sys
 import pprint
 import subprocess
 from XML2Python import xml2obj
-import six
-try:
-  from subprocess import getoutput
-except:
-  from commands import getoutput
+from subprocess import getoutput
 # These aren't all typedefs, but can sometimes make the output more
 # readable
 typedefsDict = \
@@ -35,6 +31,7 @@ typedefsDict = \
 #Ordered List to search for matched packages
 equivDict = \
      [
+         {'SelectorUtils': ['VersionedSelector']},
          {'Associations': ['TTTrackTruthPair', 'edm::Wrapper.+edm::AssociationMap.+TrackingParticle']},
          {'TrajectoryState'         : ['TrajectoryStateOnSurface']},
          {'TrackTriggerAssociation' : ['(TTClusterAssociationMap|TTStubAssociationMap|TTTrackAssociationMap|TrackingParticle).*Phase2TrackerDigi',
@@ -42,8 +39,8 @@ equivDict = \
          {'L1TrackTrigger'        : ['(TTStub|TTCluster|TTTrack).*Phase2TrackerDigi']},
          {'L1TCalorimeterPhase2'  : ['l1tp2::CaloTower.*']},
          {'L1TCalorimeter'        : ['l1t::CaloTower.*']},
+         {'VertexFinder'          : ['l1tVertexFinder::Vertex']},
          {'GsfTracking'           : ['reco::GsfTrack(Collection|).*(MomentumConstraint|VertexConstraint)', 'Trajectory.*reco::GsfTrack']},
-         {'ParallelAnalysis'      : ['examples::TrackAnalysisAlgorithm']},
          {'PatCandidates'         : ['pat::PATObject','pat::Lepton', 'reco::RecoCandidate','pat::[A-Za-z]+Ref(Vector|)', 'pat::UserHolder']},
          {'BTauReco'              : ['reco::.*SoftLeptonTagInfo', 'reco::SoftLeptonProperties','reco::SecondaryVertexTagInfo','reco::IPTagInfo','reco::TemplatedSecondaryVertexTagInfo', 'reco::CATopJetProperties','reco::HTTTopJetProperties']},
          {'CastorReco'            : ['reco::CastorJet']},
@@ -188,7 +185,7 @@ def searchClassDefXml ():
             className = stdRE.sub    ('', className)
             # print "  ", className
             # Now get rid of any typedefs
-            for typedef, tdList in six.iteritems(typedefsDict):
+            for typedef, tdList in typedefsDict.items():
                 for alias in tdList:
                     className = re.sub (alias, typedef, className)
             classDict.setdefault (className, set()).add (filename)
@@ -234,7 +231,7 @@ def searchClassDefXml ():
             print('\n%s\n%s\n' % (filename, dupProblems))
     # for filename
     if options.dups:
-        for name, fileSet in sorted( six.iteritems(classDict) ):
+        for name, fileSet in sorted( classDict.items() ):
             if len (fileSet) < 2:
                 continue
             print(name)

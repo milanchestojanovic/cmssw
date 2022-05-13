@@ -21,29 +21,34 @@ hiFirstStepGoodPrimaryVertices = cms.EDFilter("PrimaryVertexObjectFilter",
      src=cms.InputTag('hiSelectedPixelVertex')
 )
 
+import RecoTracker.TkSeedingLayers.seedingLayersEDProducer_cfi as _mod
+
 # SEEDING LAYERS
-hiJetCoreRegionalStepSeedLayers = cms.EDProducer("SeedingLayersEDProducer",
-    layerList = cms.vstring('BPix1+BPix2+BPix3', 
-    'BPix1+BPix2+FPix1_pos', 
-    'BPix1+BPix2+FPix1_neg', 
-    'BPix1+FPix1_pos+FPix2_pos', 
-    'BPix1+FPix1_neg+FPix2_neg',
-    'BPix1+BPix2+TIB1', 
-    'BPix1+BPix3+TIB1', 
-    'BPix2+BPix3+TIB1', 
-),
-    TIB = cms.PSet(
+hiJetCoreRegionalStepSeedLayers = _mod.seedingLayersEDProducer.clone(
+    layerList = ['BPix1+BPix2+BPix3', 
+                 'BPix1+BPix2+FPix1_pos', 
+                 'BPix1+BPix2+FPix1_neg', 
+                 'BPix1+FPix1_pos+FPix2_pos', 
+                 'BPix1+FPix1_neg+FPix2_neg',
+                 'BPix1+BPix2+TIB1', 
+                 'BPix1+BPix3+TIB1', 
+                 'BPix2+BPix3+TIB1', 
+                ],
+    TIB = dict(
         matchedRecHits = cms.InputTag("siStripMatchedRecHits","matchedRecHit"),
-        TTRHBuilder = cms.string('WithTrackAngle'), clusterChargeCut = cms.PSet(refToPSet_ = cms.string('SiStripClusterChargeCutNone'))
+        TTRHBuilder = cms.string('WithTrackAngle'), 
+        clusterChargeCut = cms.PSet(
+            refToPSet_ = cms.string('SiStripClusterChargeCutNone')
+        )
     ),
-    BPix = cms.PSet(
+    BPix = dict(
         useErrorsFromParam = cms.bool(True),
         hitErrorRPhi = cms.double(0.0027),
         hitErrorRZ = cms.double(0.006),
         TTRHBuilder = cms.string('WithTrackAngle'),
         HitProducer = cms.string('siPixelRecHits'),
     ),
-    FPix = cms.PSet(
+    FPix = dict(
         useErrorsFromParam = cms.bool(True),
         hitErrorRPhi = cms.double(0.0051),
         hitErrorRZ = cms.double(0.0036),
@@ -117,12 +122,11 @@ hiJetCoreRegionalStepChi2Est = TrackingTools.KalmanUpdators.Chi2MeasurementEstim
 # TRACK BUILDING
 import RecoTracker.CkfPattern.GroupedCkfTrajectoryBuilder_cfi
 hiJetCoreRegionalStepTrajectoryBuilder = RecoTracker.CkfPattern.GroupedCkfTrajectoryBuilder_cfi.GroupedCkfTrajectoryBuilder.clone(
-    MeasurementTrackerName = '',
     trajectoryFilter = dict(refToPSet_ = 'hiJetCoreRegionalStepTrajectoryFilter'),
     maxCand = 50,
     estimator = 'hiJetCoreRegionalStepChi2Est',
-    maxDPhiForLooperReconstruction = cms.double(2.0),
-    maxPtForLooperReconstruction = cms.double(0.7)
+    maxDPhiForLooperReconstruction = 2.0,
+    maxPtForLooperReconstruction = 0.7,
 )
 
 # MAKING OF TRACK CANDIDATES
@@ -130,7 +134,7 @@ import RecoTracker.CkfPattern.CkfTrackCandidates_cfi
 hiJetCoreRegionalStepTrackCandidates = RecoTracker.CkfPattern.CkfTrackCandidates_cfi.ckfTrackCandidates.clone(
     src = 'hiJetCoreRegionalStepSeeds',
     maxSeedsBeforeCleaning = 10000,
-    TrajectoryBuilderPSet = dict( refToPSet_ = 'hiJetCoreRegionalStepTrajectoryBuilder'),
+    TrajectoryBuilderPSet = dict(refToPSet_ = 'hiJetCoreRegionalStepTrajectoryBuilder'),
     NavigationSchool = 'SimpleNavigationSchool',
 )
 

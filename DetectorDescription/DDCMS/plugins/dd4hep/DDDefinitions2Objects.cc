@@ -11,6 +11,7 @@
 
 #include "XML/Utilities.h"
 #include "FWCore/ParameterSet/interface/FileInPath.h"
+#include "FWCore/Utilities/interface/Exception.h"
 #include "FWCore/Utilities/interface/thread_safety_macros.h"
 #include "DataFormats/Math/interface/CMSUnits.h"
 #include "DetectorDescription/DDCMS/interface/DDAlgoArguments.h"
@@ -29,7 +30,7 @@
 #include <unordered_map>
 #include <utility>
 
-#define EDM_ML_DEBUG
+// #define EDM_ML_DEBUG 1
 
 using namespace std;
 using namespace dd4hep;
@@ -77,6 +78,7 @@ namespace dd4hep {
     class SolidSection;
     class DDLExtrudedPolygon;
     class DDLShapeless;
+    class DDLAssembly;
     class DDLTrapezoid;
     class DDLEllipticalTube;
     class DDLPseudoTrap;
@@ -204,6 +206,9 @@ namespace dd4hep {
   /// Converter for <ShapelessSolid/> tags
   template <>
   void Converter<DDLShapeless>::operator()(xml_h element) const;
+  /// Converter for <Assembly/> tags
+  template <>
+  void Converter<DDLAssembly>::operator()(xml_h element) const;
   /// Converter for <Trapezoid/> tags
   template <>
   void Converter<DDLTrapezoid>::operator()(xml_h element) const;
@@ -387,6 +392,9 @@ void Converter<SolidSection>::operator()(xml_h element) const {
       case hash("ShapelessSolid"):
         Converter<DDLShapeless>(description, ns.context(), optional)(solid);
         break;
+      case hash("Assembly"):
+        Converter<DDLAssembly>(description, ns.context(), optional)(solid);
+        break;
       default:
         throw std::runtime_error("Request to process unknown shape '" + xml_dim_t(solid).nameStr() + "' [" +
                                  solid.tag() + "]");
@@ -458,7 +466,8 @@ template <>
 void Converter<DDLElementaryMaterial>::operator()(xml_h element) const {
   cms::DDNamespace ns(_param<cms::DDParsingContext>());
   xml_dim_t xmat(element);
-  string nam = ns.prepend(xmat.nameStr());
+  const string xmatName(xmat.nameStr());
+  string nam = ns.prepend(xmatName);
   TGeoManager& mgr = description.manager();
   TGeoMaterial* mat = mgr.GetMaterial(nam.c_str());
   if (nullptr == mat) {
@@ -481,14 +490,15 @@ void Converter<DDLElementaryMaterial>::operator()(xml_h element) const {
       tab->BuildDefaultElements();
     }
     TGeoMixture* mix = new TGeoMixture(nam.c_str(), 1, density);
-    TGeoElement* elt = tab->FindElement(xmat.nameStr().c_str());
+    const char* const matNameNoNS = xmatName.c_str();
+    TGeoElement* elt = tab->FindElement(matNameNoNS);
 
 #ifdef EDM_ML_DEBUG
 
     printout(ns.context()->debug_materials ? ALWAYS : DEBUG,
              "DD4CMS",
              "+++ Searching for material %-48s  elt_ptr = %ld",
-             xmat.nameStr().c_str(),
+             matNameNoNS,
              elt);
 
     printout(ns.context()->debug_materials ? ALWAYS : DEBUG,
@@ -552,7 +562,7 @@ void Converter<DDLElementaryMaterial>::operator()(xml_h element) const {
 
 #endif
       }
-      elt = new TGeoElement(xmat.nameStr().c_str(), "CMS element", atomicNumber, atomicWeight);
+      elt = new TGeoElement(matNameNoNS, matNameNoNS, atomicNumber, atomicWeight);
     }
 
     mix->AddElement(elt, 1.0);
@@ -596,12 +606,19 @@ void Converter<DDLCompositeMaterial>::operator()(xml_h element) const {
 
 #endif
 
+    if (ns.context()->makePayload) {
+      ns.context()->compMaterialsVec.emplace_back(std::make_pair(nam, density));
+    }
     for (composites.reset(); composites; ++composites) {
       xml_dim_t xfrac(composites);
       xml_dim_t xfrac_mat(xfrac.child(DD_CMU(rMaterial)));
       double fraction = xfrac.fraction();
       string fracname = ns.realName(xfrac_mat.nameStr());
 
+      if (ns.context()->makePayload) {
+        ns.context()->compMaterialsRefs[nam].emplace_back(
+            cms::DDParsingContext::CompositeMaterial(ns.prepend(fracname), fraction));
+      }
       TGeoMaterial* frac_mat = mgr.GetMaterial(fracname.c_str());
       if (frac_mat == nullptr)  // Try to find it within this namespace
         frac_mat = mgr.GetMaterial(ns.prepend(fracname).c_str());
@@ -610,18 +627,8 @@ void Converter<DDLCompositeMaterial>::operator()(xml_h element) const {
         continue;
       }
 
-#ifdef EDM_ML_DEBUG
-
-      printout(ns.context()->debug_materials ? ALWAYS : DEBUG,
-               "DD4CMS Warning",
-               "+++ Composite material \"%s\" [nor \"%s\"] not present! [delay resolution]",
-               fracname.c_str(),
-               ns.prepend(fracname).c_str());
-
-#endif
-
-      ns.context()->unresolvedMaterials[nam].emplace_back(
-          cms::DDParsingContext::CompositeMaterial(ns.prepend(fracname), fraction));
+      throw cms::Exception("DD4CMS") << "Composite material \"" + fracname + "\" or \"" + ns.prepend(fracname) +
+                                            "\" not yet defined.";
     }
     mix->SetTemperature(ns.context()->description.stdConditions().temperature);
     mix->SetPressure(ns.context()->description.stdConditions().pressure);
@@ -793,6 +800,13 @@ void Converter<DDLLogicalPart>::operator()(xml_h element) const {
   string volName = ns.prepend(e.attr<string>(_U(name)));
   Solid solid = ns.solid(sol);
   Material material = ns.material(mat);
+  if (ns.context()->assemblySolids.count(sol) == 1) {
+    // To match the general paradigm, an assembly starts as a solid,
+    // and then a logical part is made of the solid. However, the
+    // solid is just a dummy whose names tags it as an assembly.
+    ns.addAssembly(volName, false);
+    return;
+  }
 
 #ifdef EDM_ML_DEBUG
   Volume volume =
@@ -850,6 +864,57 @@ void Converter<DDLTransform3D>::operator()(xml_h element) const {
   *tr = Transform3D(rot, pos);
 }
 
+static void placeAssembly(Volume* parentPtr,
+                          const string& parentName,
+                          Volume* childPtr,
+                          const string& childName,
+                          int copy,
+                          const Transform3D& transform,
+                          cms::DDNamespace& ns) {
+#ifdef EDM_ML_DEBUG
+
+  printout(ns.context()->debug_placements ? ALWAYS : DEBUG,
+           "DD4CMS",
+           "+++ Parent vol: %-24s Child: %-32s, copy:%d",
+           parentName.c_str(),
+           childName.c_str(),
+           copy);
+
+#endif
+
+  TGeoShape* shape = (*childPtr)->GetShape();
+  // Need to fix the daughter's BBox of assemblies, if the BBox was not calculated....
+  if (shape->IsA() == TGeoShapeAssembly::Class()) {
+    TGeoShapeAssembly* as = (TGeoShapeAssembly*)shape;
+    if (std::fabs(as->GetDX()) < numeric_limits<double>::epsilon() &&
+        std::fabs(as->GetDY()) < numeric_limits<double>::epsilon() &&
+        std::fabs(as->GetDZ()) < numeric_limits<double>::epsilon()) {
+      as->NeedsBBoxRecompute();
+      as->ComputeBBox();
+    }
+  }
+  if (ns.context()->validate) {
+    TGeoNode* n;
+    TString nam_id = TString::Format("%s_%d", (*childPtr)->GetName(), copy);
+    n = static_cast<TGeoNode*>((*parentPtr)->GetNode(nam_id));
+    if (n != nullptr) {
+      printout(ERROR, "PlacedVolume", "++ Attempt to add already existing node %s", (const char*)nam_id);
+      return;
+    }
+  }
+
+  PlacedVolume pv;
+  if ((*childPtr)->IsAssembly()) {
+    pv = parentPtr->placeVolume(ns.assembly(childName), copy, transform);
+  } else {
+    pv = parentPtr->placeVolume(*childPtr, copy, transform);
+  }
+
+  if (!pv.isValid()) {
+    printout(ERROR, "DD4CMS", "+++ Placement FAILED! Parent:%s Child:%s", parentName.c_str(), childName.c_str());
+  }
+}
+
 /// Converter for <PosPart/> tags
 template <>
 void Converter<DDLPosPart>::operator()(xml_h element) const {
@@ -858,8 +923,13 @@ void Converter<DDLPosPart>::operator()(xml_h element) const {
   int copy = e.attr<int>(DD_CMU(copyNumber));
   string parentName = ns.prepend(ns.attr<string>(e.child(DD_CMU(rParent)), _U(name)));
   string childName = ns.prepend(ns.attr<string>(e.child(DD_CMU(rChild)), _U(name)));
+  Transform3D transform;
+  Converter<DDLTransform3D>(description, param, &transform)(element);
+
   Volume parent = ns.volume(parentName, false);
   Volume child = ns.volume(childName, false);
+  Assembly parAsmb = ns.assembly(parentName, false);
+  Assembly childAsmb = ns.assembly(childName, false);
 
 #ifdef EDM_ML_DEBUG
 
@@ -875,13 +945,29 @@ void Converter<DDLPosPart>::operator()(xml_h element) const {
 
 #endif
 
-  if (!parent.isValid() && strchr(parentName.c_str(), NAMESPACE_SEP) == nullptr)
+  if (!parent.isValid() && !parAsmb.isValid() && strchr(parentName.c_str(), NAMESPACE_SEP) == nullptr) {
     parentName = ns.prepend(parentName);
-  parent = ns.volume(parentName);
+    parAsmb = ns.assembly(parentName, false);
+    if (!parAsmb.isValid())
+      parent = ns.volume(parentName);
+  }
 
-  if (!child.isValid() && strchr(childName.c_str(), NAMESPACE_SEP) == nullptr)
+  if (!child.isValid() && !childAsmb.isValid() && strchr(childName.c_str(), NAMESPACE_SEP) == nullptr) {
     childName = ns.prepend(childName);
-  child = ns.volume(childName, false);
+    child = ns.volume(childName, false);
+    childAsmb = ns.assembly(childName, false);
+  }
+  if (parAsmb.isValid() || childAsmb.isValid()) {
+    printout(ns.context()->debug_placements ? ALWAYS : DEBUG,
+             "DD4CMS",
+             "***** Placing assembly parent %s, child %s",
+             parentName.c_str(),
+             childName.c_str());
+    Volume* parentPtr = parAsmb.isValid() ? &parAsmb : &parent;
+    Volume* childPtr = childAsmb.isValid() ? &childAsmb : &child;
+    placeAssembly(parentPtr, parentName, childPtr, childName, copy, transform, ns);
+    return;
+  }
 
 #ifdef EDM_ML_DEBUG
 
@@ -899,9 +985,6 @@ void Converter<DDLPosPart>::operator()(xml_h element) const {
 
   PlacedVolume pv;
   if (child.isValid()) {
-    Transform3D transform;
-    Converter<DDLTransform3D>(description, param, &transform)(element);
-
     // FIXME: workaround for Reflection rotation
     // copy from DDCore/src/Volumes.cpp to replace
     // static PlacedVolume _addNode(TGeoVolume* par, TGeoVolume* daughter, int id, TGeoMatrix* transform)
@@ -924,9 +1007,11 @@ void Converter<DDLPosPart>::operator()(xml_h element) const {
     }
     TGeoNode* n;
     TString nam_id = TString::Format("%s_%d", child->GetName(), copy);
-    n = static_cast<TGeoNode*>(parent->GetNode(nam_id));
-    if (n != nullptr) {
-      printout(ERROR, "PlacedVolume", "++ Attempt to add already exiting node %s", (const char*)nam_id);
+    if (ns.context()->validate) {
+      n = static_cast<TGeoNode*>(parent->GetNode(nam_id));
+      if (n != nullptr) {
+        printout(ERROR, "PlacedVolume", "++ Attempt to add already existing node %s", (const char*)nam_id);
+      }
     }
 
     Rotation3D rot(transform.Rotation());
@@ -936,7 +1021,8 @@ void Converter<DDLPosPart>::operator()(xml_h element) const {
     Position pos(x, y, z);
     parent->AddNode(child, copy, createPlacement(rot, pos));
 
-    n = static_cast<TGeoNode*>(parent->GetNode(nam_id));
+    n = static_cast<TGeoNode*>(parent->GetNodes()->Last());
+    assert(n->GetName() == nam_id);
     n->TGeoNode::SetUserExtension(new PlacedVolume::Object());
     pv = PlacedVolume(n);
   }
@@ -1091,6 +1177,13 @@ static void convert_boolean(cms::DDParsingContext* context, xml_h element) {
     Converter<DDLTransform3D>(context->description, context, &trafo)(element);
     ns.context()->unresolvedShapes.emplace(nam,
                                            DDParsingContext::BooleanShape<TYPE>(solidName[0], solidName[1], trafo));
+    if (solids[0].isValid() == false) {
+      printout(ERROR, "DD4CMS", "++ Solid not defined yet: %s", solidName[0].c_str());
+    }
+    if (solids[1].isValid() == false) {
+      printout(ERROR, "DD4CMS", "++ Solid not defined yet: %s", solidName[1].c_str());
+    }
+    printout(ERROR, "DD4CMS", "++ Re-order XML files to prevent references to undefined solids");
   }
   if (!boolean.isValid()) {
     // Delay processing the shape
@@ -1611,12 +1704,27 @@ void Converter<DDLShapeless>::operator()(xml_h element) const {
 
   printout(ns.context()->debug_shapes ? ALWAYS : DEBUG,
            "DD4CMS",
-           "+   Shapeless: THIS ONE CAN ONLY BE USED AT THE VOLUME LEVEL -> Assembly%s",
+           "+   Shapeless: THIS ONE CAN ONLY BE USED AT THE VOLUME LEVEL -> Shapeless: %s",
            nam.c_str());
 
 #endif
 
   ns.addSolid(nam, Box(1, 1, 1));
+}
+
+/// Converter for <Assembly/> tags
+template <>
+void Converter<DDLAssembly>::operator()(xml_h element) const {
+  cms::DDNamespace ns(_param<cms::DDParsingContext>());
+  xml_dim_t e(element);
+  string nam = e.nameStr();
+
+#ifdef EDM_ML_DEBUG
+  printout(
+      ns.context()->debug_shapes ? ALWAYS : DEBUG, "DD4CMS", "+   Assembly: Adding solid -> Assembly: %s", nam.c_str());
+#endif
+
+  ns.addAssemblySolid(nam);
 }
 
 /// Converter for <Box/> tags
@@ -1811,7 +1919,6 @@ void Converter<DDLDivision>::operator()(xml_h element) const {
              child->IsVolumeMulti() ? "YES" : "NO");
 
 #endif
-
   } else {
     printout(ERROR, "DD4CMS", "++ FAILED Division of a %s is not implemented yet!", parent.solid().type());
   }
@@ -2056,7 +2163,7 @@ void Converter<print_xml_doc>::operator()(xml_h element) const {
 static long load_dddefinition(Detector& det, xml_h element) {
   xml_elt_t dddef(element);
   if (dddef) {
-    cms::DDParsingContext context(det);
+    cms::DDParsingContext& context = *det.extension<DDParsingContext>();
     cms::DDNamespace ns(context);
     ns.addConstantNS("world_x", "101*m", "number");
     ns.addConstantNS("world_y", "101*m", "number");
@@ -2118,51 +2225,6 @@ static long load_dddefinition(Detector& det, xml_h element) {
       for (xml::Document d : res.includes) {
         print_doc((doc = d).root());
         xml_coll_t(d.root(), DD_CMU(MaterialSection)).for_each(Converter<MaterialSection>(det, &context));
-      }
-      {
-        printout(context.debug_materials ? ALWAYS : DEBUG,
-                 "DD4CMS",
-                 "+++ RESOLVING %ld unknown material constituents.....",
-                 context.unresolvedMaterials.size());
-
-        // Resolve referenced materials (if any)
-
-        while (!context.unresolvedMaterials.empty()) {
-          for (auto it = context.unresolvedMaterials.begin(); it != context.unresolvedMaterials.end();) {
-            auto const& name = it->first;
-            std::vector<bool> valid;
-
-            printout(context.debug_materials ? ALWAYS : DEBUG,
-                     "DD4CMS",
-                     "+++ [%06ld] ----------  %s",
-                     context.unresolvedMaterials.size(),
-                     name.c_str());
-
-            auto mat = ns.material(name);
-            for (auto& mit : it->second) {
-              printout(context.debug_materials ? ALWAYS : DEBUG,
-                       "DD4CMS",
-                       "+++           component  %-48s Fraction: %.6f",
-                       mit.name.c_str(),
-                       mit.fraction);
-              auto fmat = ns.material(mit.name);
-              if (nullptr != fmat.ptr()) {
-                if (mat.ptr()->GetMaterial()->IsMixture()) {
-                  valid.emplace_back(true);
-                  static_cast<TGeoMixture*>(mat.ptr()->GetMaterial())
-                      ->AddElement(fmat.ptr()->GetMaterial(), mit.fraction);
-                }
-              }
-            }
-            // All components are resolved
-            if (valid.size() == it->second.size())
-              it = context.unresolvedMaterials.erase(it);
-            else
-              ++it;
-          }
-          // Do it again if there are unresolved
-          // materials left after this pass
-        }
       }
       if (open_geometry) {
         det.init();

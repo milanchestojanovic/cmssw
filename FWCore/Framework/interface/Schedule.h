@@ -58,17 +58,18 @@
 */
 
 #include "DataFormats/Provenance/interface/ModuleDescription.h"
+#include "FWCore/Common/interface/FWCoreCommonFwd.h"
 #include "FWCore/Framework/interface/ExceptionActions.h"
 #include "FWCore/Framework/interface/ExceptionHelpers.h"
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/OccurrenceTraits.h"
 #include "FWCore/Framework/interface/WorkerManager.h"
-#include "FWCore/Framework/src/Worker.h"
-#include "FWCore/Framework/src/WorkerRegistry.h"
-#include "FWCore/Framework/src/GlobalSchedule.h"
-#include "FWCore/Framework/src/StreamSchedule.h"
-#include "FWCore/Framework/src/SystemTimeKeeper.h"
-#include "FWCore/Framework/src/PreallocationConfiguration.h"
+#include "FWCore/Framework/interface/maker/Worker.h"
+#include "FWCore/Framework/interface/WorkerRegistry.h"
+#include "FWCore/Framework/interface/GlobalSchedule.h"
+#include "FWCore/Framework/interface/StreamSchedule.h"
+#include "FWCore/Framework/interface/SystemTimeKeeper.h"
+#include "FWCore/Framework/interface/PreallocationConfiguration.h"
 #include "FWCore/MessageLogger/interface/ExceptionMessages.h"
 #include "FWCore/MessageLogger/interface/JobReport.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
@@ -130,6 +131,7 @@ namespace edm {
              service::TriggerNamesService const& tns,
              ProductRegistry& pregistry,
              BranchIDListHelper& branchIDListHelper,
+             ProcessBlockHelperBase&,
              ThinnedAssociationsHelper& thinnedAssociationsHelper,
              SubProcessParentageHelper const* subProcessParentageHelper,
              ExceptionToActionTable const& actions,
@@ -157,7 +159,7 @@ namespace edm {
                                ServiceToken const& token,
                                bool cleaningUpAfterException = false);
 
-    void beginJob(ProductRegistry const&, eventsetup::ESRecordsToProxyIndices const&);
+    void beginJob(ProductRegistry const&, eventsetup::ESRecordsToProxyIndices const&, ProcessBlockHelperBase const&);
     void endJob(ExceptionCollector& collector);
 
     void beginStream(unsigned int);
@@ -251,14 +253,6 @@ namespace edm {
     /// (N.B. totalEventsFailed() + totalEventsPassed() == totalEvents()
     int totalEventsFailed() const;
 
-    /// Turn end_paths "off" if "active" is false;
-    /// turn end_paths "on" if "active" is true.
-    void enableEndPaths(bool active);
-
-    /// Return true if end_paths are active, and false if they are
-    /// inactive.
-    bool endPathsEnabled() const;
-
     /// Return the trigger report information on paths,
     /// modules-in-path, modules-in-endpath, and modules.
     void getTriggerReport(TriggerReport& rep) const;
@@ -282,6 +276,8 @@ namespace edm {
 
     /// Deletes module with label iLabel
     void deleteModule(std::string const& iLabel, ActivityRegistry* areg);
+
+    void initializeEarlyDelete(std::vector<std::string> const& branchesToDeleteEarly, edm::ProductRegistry const& preg);
 
     /// returns the collection of pointers to workers
     AllWorkers const& allWorkers() const;
@@ -317,8 +313,6 @@ namespace edm {
     std::vector<std::string> const* pathNames_;
     std::vector<std::string> const* endPathNames_;
     bool wantSummary_;
-
-    volatile bool endpathsAreActive_;
   };
 
   template <typename T>

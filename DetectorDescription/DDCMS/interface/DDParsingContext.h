@@ -6,22 +6,29 @@
 #include <string>
 #include <variant>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace cms {
 
   class DDParsingContext {
   public:
-    DDParsingContext(dd4hep::Detector& det) : description(det) {
+    DDParsingContext(dd4hep::Detector& det, bool makePayloadArg = false, bool validateArg = false)
+        : makePayload(makePayloadArg), validate(validateArg), description(det) {
       assemblies.reserve(100);
+      assemblySolids.reserve(100);
       rotations.reserve(3000);
       shapes.reserve(4000);
       volumes.reserve(3000);
-      unresolvedMaterials.reserve(300);
       unresolvedVectors.reserve(300);
       unresolvedShapes.reserve(1000);
 
       namespaces.emplace_back("");
+      if (makePayload) {
+        rotRevMap.reserve(3000);
+        compMaterialsVec.reserve(400);
+        compMaterialsRefs.reserve(400);
+      }
     }
 
     DDParsingContext() = delete;
@@ -64,16 +71,21 @@ namespace cms {
     bool debug_namespaces = false;
     bool debug_algorithms = false;
     bool debug_specpars = false;
+    bool makePayload = false;
+    bool validate = false;
 
     dd4hep::Detector& description;
 
     std::unordered_map<std::string, dd4hep::Assembly> assemblies;
+    std::unordered_set<std::string> assemblySolids;
     std::unordered_map<std::string, dd4hep::Rotation3D> rotations;
+    std::unordered_map<std::string, std::string> rotRevMap;
     std::unordered_map<std::string, dd4hep::Solid> shapes;
     std::unordered_map<std::string, dd4hep::Volume> volumes;
     std::vector<std::string> namespaces;
 
-    std::unordered_map<std::string, std::vector<CompositeMaterial>> unresolvedMaterials;
+    std::vector<std::pair<std::string, double>> compMaterialsVec;
+    std::unordered_map<std::string, std::vector<CompositeMaterial>> compMaterialsRefs;
     std::unordered_map<std::string, std::vector<std::string>> unresolvedVectors;
     std::unordered_map<std::string,
                        std::variant<BooleanShape<dd4hep::UnionSolid>,

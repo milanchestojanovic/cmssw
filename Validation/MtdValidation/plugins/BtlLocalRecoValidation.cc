@@ -26,6 +26,7 @@
 #include "DataFormats/ForwardDetId/interface/BTLDetId.h"
 #include "DataFormats/FTLRecHit/interface/FTLRecHitCollections.h"
 #include "DataFormats/FTLRecHit/interface/FTLClusterCollections.h"
+#include "DataFormats/TrackerRecHit2D/interface/MTDTrackingRecHit.h"
 
 #include "SimDataFormats/CrossingFrame/interface/CrossingFrame.h"
 #include "SimDataFormats/CrossingFrame/interface/MixCollection.h"
@@ -61,6 +62,8 @@ private:
 
   void analyze(const edm::Event&, const edm::EventSetup&) override;
 
+  bool isSameCluster(const FTLCluster&, const FTLCluster&);
+
   // ------------ member data ------------
 
   const std::string folder_;
@@ -73,6 +76,7 @@ private:
   edm::EDGetTokenT<FTLUncalibratedRecHitCollection> btlUncalibRecHitsToken_;
   edm::EDGetTokenT<CrossingFrame<PSimHit> > btlSimHitsToken_;
   edm::EDGetTokenT<FTLClusterCollection> btlRecCluToken_;
+  edm::EDGetTokenT<MTDTrackingDetSetVector> mtdTrackingHitToken_;
 
   edm::ESGetToken<MTDGeometry, MTDDigiGeometryRecord> mtdgeoToken_;
   edm::ESGetToken<MTDTopology, MTDTopologyRcd> mtdtopoToken_;
@@ -126,6 +130,29 @@ private:
   MonitorElement* meCluEta_;
   MonitorElement* meCluHits_;
   MonitorElement* meCluZvsPhi_;
+  MonitorElement* meCluEnergyvsEta_;
+  MonitorElement* meCluHitsvsEta_;
+
+  MonitorElement* meCluTimeRes_;
+  MonitorElement* meCluEnergyRes_;
+  MonitorElement* meCluTResvsE_;
+  MonitorElement* meCluTResvsEta_;
+  MonitorElement* meCluTPullvsE_;
+  MonitorElement* meCluTPullvsEta_;
+  MonitorElement* meCluRhoRes_;
+  MonitorElement* meCluPhiRes_;
+  MonitorElement* meCluLocalXRes_;
+  MonitorElement* meCluLocalYRes_;
+  MonitorElement* meCluZRes_;
+  MonitorElement* meCluLocalXPull_;
+  MonitorElement* meCluLocalYPull_;
+  MonitorElement* meCluZPull_;
+  MonitorElement* meCluYXLocal_;
+  MonitorElement* meCluYXLocalSim_;
+  MonitorElement* meCluXLocalErr_;
+  MonitorElement* meCluYLocalErr_;
+
+  MonitorElement* meUnmatchedCluEnergy_;
 
   // --- UncalibratedRecHits histograms
 
@@ -146,6 +173,11 @@ private:
   MonitorElement* meTimeResEtavsQ_[nBinsEta_][nBinsEtaQ_];
 };
 
+bool BtlLocalRecoValidation::isSameCluster(const FTLCluster& clu1, const FTLCluster& clu2) {
+  return clu1.id() == clu2.id() && clu1.size() == clu2.size() && clu1.x() == clu2.x() && clu1.y() == clu2.y() &&
+         clu1.time() == clu2.time();
+}
+
 // ------------ constructor and destructor --------------
 BtlLocalRecoValidation::BtlLocalRecoValidation(const edm::ParameterSet& iConfig)
     : folder_(iConfig.getParameter<std::string>("folder")),
@@ -159,6 +191,7 @@ BtlLocalRecoValidation::BtlLocalRecoValidation(const edm::ParameterSet& iConfig)
         consumes<FTLUncalibratedRecHitCollection>(iConfig.getParameter<edm::InputTag>("uncalibRecHitsTag"));
   btlSimHitsToken_ = consumes<CrossingFrame<PSimHit> >(iConfig.getParameter<edm::InputTag>("simHitsTag"));
   btlRecCluToken_ = consumes<FTLClusterCollection>(iConfig.getParameter<edm::InputTag>("recCluTag"));
+  mtdTrackingHitToken_ = consumes<MTDTrackingDetSetVector>(iConfig.getParameter<edm::InputTag>("trkHitTag"));
 
   mtdgeoToken_ = esConsumes<MTDGeometry, MTDDigiGeometryRecord>();
   mtdtopoToken_ = esConsumes<MTDTopology, MTDTopologyRcd>();
@@ -181,6 +214,7 @@ void BtlLocalRecoValidation::analyze(const edm::Event& iEvent, const edm::EventS
   auto btlRecHitsHandle = makeValid(iEvent.getHandle(btlRecHitsToken_));
   auto btlSimHitsHandle = makeValid(iEvent.getHandle(btlSimHitsToken_));
   auto btlRecCluHandle = makeValid(iEvent.getHandle(btlRecCluToken_));
+  auto mtdTrkHitHandle = makeValid(iEvent.getHandle(mtdTrackingHitToken_));
   MixCollection<PSimHit> btlSimHits(btlSimHitsHandle.product());
 
   // --- Loop over the BTL SIM hits
@@ -211,7 +245,6 @@ void BtlLocalRecoValidation::analyze(const edm::Event& iEvent, const edm::EventS
 
   // --- Loop over the BTL RECO hits
   unsigned int n_reco_btl = 0;
-
   for (const auto& recHit : *btlRecHitsHandle) {
     BTLDetId detId = recHit.id();
     DetId geoId = detId.geographicalId(MTDTopologyMode::crysLayoutFromTopoMode(topology->getMTDTopologyMode()));
@@ -260,9 +293,9 @@ void BtlLocalRecoValidation::analyze(const edm::Event& iEvent, const edm::EventS
       float time_res = recHit.time() - m_btlSimHits[detId.rawId()].time;
       float energy_res = recHit.energy() - m_btlSimHits[detId.rawId()].energy;
 
-      Local3DPoint local_point_sim(m_btlSimHits[detId.rawId()].x_local,
-                                   m_btlSimHits[detId.rawId()].y_local,
-                                   m_btlSimHits[detId.rawId()].z_local);
+      Local3DPoint local_point_sim(convertMmToCm(m_btlSimHits[detId.rawId()].x_local),
+                                   convertMmToCm(m_btlSimHits[detId.rawId()].y_local),
+                                   convertMmToCm(m_btlSimHits[detId.rawId()].z_local));
       local_point_sim =
           topo.pixelToModuleLocalPoint(local_point_sim, detId.row(topo.nrows()), detId.column(topo.nrows()));
       const auto& global_point_sim = thedet->toGlobal(local_point_sim);
@@ -301,8 +334,8 @@ void BtlLocalRecoValidation::analyze(const edm::Event& iEvent, const edm::EventS
       const ProxyMTDTopology& topoproxy = static_cast<const ProxyMTDTopology&>(genericDet->topology());
       const RectangularMTDTopology& topo = static_cast<const RectangularMTDTopology&>(topoproxy.specificTopology());
 
-      Local3DPoint local_point(cluster.x() * topo.pitch().first, cluster.y() * topo.pitch().second, 0.);
-      local_point = topo.pixelToModuleLocalPoint(local_point, cluId.row(topo.nrows()), cluId.column(topo.ncolumns()));
+      // --- Cluster position in the module reference frame
+      Local3DPoint local_point(topo.localX(cluster.x()), topo.localY(cluster.y()), 0.);
       const auto& global_point = genericDet->toGlobal(local_point);
 
       meCluEnergy_->Fill(cluster.energy());
@@ -312,8 +345,128 @@ void BtlLocalRecoValidation::analyze(const edm::Event& iEvent, const edm::EventS
       meCluEta_->Fill(global_point.eta());
       meCluZvsPhi_->Fill(global_point.z(), global_point.phi());
       meCluHits_->Fill(cluster.size());
-    }
-  }
+
+      // --- Get the SIM hits associated to the cluster and calculate
+      //     the cluster SIM energy, time and position
+
+      double cluEneSIM = 0.;
+      double cluTimeSIM = 0.;
+      double cluLocXSIM = 0.;
+      double cluLocYSIM = 0.;
+      double cluLocZSIM = 0.;
+
+      for (int ihit = 0; ihit < cluster.size(); ++ihit) {
+        int hit_row = cluster.minHitRow() + cluster.hitOffset()[ihit * 2];
+        int hit_col = cluster.minHitCol() + cluster.hitOffset()[ihit * 2 + 1];
+
+        // Match the RECO hit to the corresponding SIM hit
+        for (const auto& recHit : *btlRecHitsHandle) {
+          BTLDetId hitId(recHit.id().rawId());
+
+          if (m_btlSimHits.count(hitId.rawId()) == 0)
+            continue;
+
+          // Check the hit position
+          if (hitId.mtdSide() != cluId.mtdSide() || hitId.mtdRR() != cluId.mtdRR() || recHit.row() != hit_row ||
+              recHit.column() != hit_col)
+            continue;
+
+          // Check the hit energy and time
+          if (recHit.energy() != cluster.hitENERGY()[ihit] || recHit.time() != cluster.hitTIME()[ihit])
+            continue;
+
+          // SIM hit's position in the module reference frame
+          Local3DPoint local_point_sim(convertMmToCm(m_btlSimHits[recHit.id().rawId()].x_local),
+                                       convertMmToCm(m_btlSimHits[recHit.id().rawId()].y_local),
+                                       convertMmToCm(m_btlSimHits[recHit.id().rawId()].z_local));
+          local_point_sim =
+              topo.pixelToModuleLocalPoint(local_point_sim, hitId.row(topo.nrows()), hitId.column(topo.nrows()));
+
+          // Calculate the SIM cluster's position in the module reference frame
+          cluLocXSIM += local_point_sim.x() * m_btlSimHits[recHit.id().rawId()].energy;
+          cluLocYSIM += local_point_sim.y() * m_btlSimHits[recHit.id().rawId()].energy;
+          cluLocZSIM += local_point_sim.z() * m_btlSimHits[recHit.id().rawId()].energy;
+
+          // Calculate the SIM cluster energy and time
+          cluEneSIM += m_btlSimHits[recHit.id().rawId()].energy;
+          cluTimeSIM += m_btlSimHits[recHit.id().rawId()].time * m_btlSimHits[recHit.id().rawId()].energy;
+
+        }  // recHit loop
+
+      }  // ihit loop
+
+      // Find the MTDTrackingRecHit corresponding to the cluster
+      MTDTrackingRecHit* comp(nullptr);
+      bool matchClu = false;
+      const auto& trkHits = (*mtdTrkHitHandle)[detIdObject];
+      for (const auto& trkHit : trkHits) {
+        if (isSameCluster(trkHit.mtdCluster(), cluster)) {
+          comp = trkHit.clone();
+          matchClu = true;
+          break;
+        }
+      }
+      if (!matchClu) {
+        edm::LogWarning("BtlLocalRecoValidation")
+            << "No valid TrackingRecHit corresponding to cluster, detId = " << detIdObject.rawId();
+      }
+
+      // --- Fill the cluster resolution histograms
+      if (cluTimeSIM > 0. && cluEneSIM > 0.) {
+        cluTimeSIM /= cluEneSIM;
+
+        Local3DPoint cluLocalPosSIM(cluLocXSIM / cluEneSIM, cluLocYSIM / cluEneSIM, cluLocZSIM / cluEneSIM);
+        const auto& cluGlobalPosSIM = genericDet->toGlobal(cluLocalPosSIM);
+
+        float time_res = cluster.time() - cluTimeSIM;
+        float energy_res = cluster.energy() - cluEneSIM;
+        meCluTimeRes_->Fill(time_res);
+        meCluEnergyRes_->Fill(energy_res);
+
+        float rho_res = global_point.perp() - cluGlobalPosSIM.perp();
+        float phi_res = global_point.phi() - cluGlobalPosSIM.phi();
+
+        meCluRhoRes_->Fill(rho_res);
+        meCluPhiRes_->Fill(phi_res);
+
+        float xlocal_res = local_point.x() - cluLocalPosSIM.x();
+        float ylocal_res = local_point.y() - cluLocalPosSIM.y();
+        float z_res = global_point.z() - cluGlobalPosSIM.z();
+
+        meCluZRes_->Fill(z_res);
+
+        if (LocalPosDebug_) {
+          if (matchClu && comp != nullptr) {
+            meCluLocalXRes_->Fill(xlocal_res);
+            meCluLocalYRes_->Fill(ylocal_res);
+            meCluLocalXPull_->Fill(xlocal_res / std::sqrt(comp->localPositionError().xx()));
+            meCluLocalYPull_->Fill(ylocal_res / std::sqrt(comp->localPositionError().yy()));
+            meCluZPull_->Fill(z_res / std::sqrt(comp->globalPositionError().czz()));
+            meCluXLocalErr_->Fill(std::sqrt(comp->localPositionError().xx()));
+            meCluYLocalErr_->Fill(std::sqrt(comp->localPositionError().yy()));
+          }
+
+          meCluYXLocal_->Fill(local_point.x(), local_point.y());
+          meCluYXLocalSim_->Fill(cluLocalPosSIM.x(), cluLocalPosSIM.y());
+        }
+
+        meCluEnergyvsEta_->Fill(std::abs(cluGlobalPosSIM.eta()), cluster.energy());
+        meCluHitsvsEta_->Fill(std::abs(cluGlobalPosSIM.eta()), cluster.size());
+
+        meCluTResvsEta_->Fill(std::abs(cluGlobalPosSIM.eta()), time_res);
+        meCluTResvsE_->Fill(cluEneSIM, time_res);
+
+        meCluTPullvsEta_->Fill(std::abs(cluGlobalPosSIM.eta()), time_res / cluster.timeError());
+        meCluTPullvsE_->Fill(cluEneSIM, time_res / cluster.timeError());
+
+      }  // if ( cluTimeSIM > 0. &&  cluEneSIM > 0. )
+      else {
+        meUnmatchedCluEnergy_->Fill(std::log10(cluster.energy()));
+      }
+
+    }  // cluster loop
+
+  }  // DetSetClu loop
 
   // --- Loop over the BTL Uncalibrated RECO hits
   if (uncalibRecHitsPlots_) {
@@ -471,10 +624,10 @@ void BtlLocalRecoValidation::bookHistograms(DQMStore::IBooker& ibook,
       5.,
       "S");
   meTPullvsE_ = ibook.bookProfile(
-      "BtlTPullvsE", "BTL time pull vs E;E_{SIM} [MeV];T_{RECO}-T_{SIM}/#sigma_{T_{RECO}}", 20, 0., 20., -5., 5., "S");
+      "BtlTPullvsE", "BTL time pull vs E;E_{SIM} [MeV];(T_{RECO}-T_{SIM})/#sigma_{T_{RECO}}", 20, 0., 20., -5., 5., "S");
   meTPullvsEta_ = ibook.bookProfile("BtlTPullvsEta",
-                                    "BTL time pull vs #eta;|#eta_{RECO}|;T_{RECO}-T_{SIM}/#sigma_{T_{RECO}}",
-                                    32,
+                                    "BTL time pull vs #eta;|#eta_{RECO}|;(T_{RECO}-T_{SIM})/#sigma_{T_{RECO}}",
+                                    30,
                                     0,
                                     1.55,
                                     -5.,
@@ -488,6 +641,83 @@ void BtlLocalRecoValidation::bookHistograms(DQMStore::IBooker& ibook,
   meCluHits_ = ibook.book1D("BtlCluHitNumber", "BTL hits per cluster; Cluster size", 10, 0, 10);
   meCluZvsPhi_ = ibook.book2D(
       "BtlOccupancy", "BTL cluster Z vs #phi;Z_{RECO} [cm]; #phi_{RECO} [rad]", 144, -260., 260., 50, -3.2, 3.2);
+  meCluEnergyvsEta_ = ibook.bookProfile(
+      "BtlCluEnergyVsEta", "BTL cluster energy vs #eta; |#eta_{RECO}|; E_{RECO} [cm]", 30, 0., 1.55, 0., 20., "S");
+  meCluHitsvsEta_ = ibook.bookProfile(
+      "BtlCluHitsVsEta", "BTL hits per cluster vs #eta; |#eta_{RECO}|;Cluster size", 30, 0., 1.55, 0., 10., "S");
+
+  meCluTimeRes_ = ibook.book1D("BtlCluTimeRes", "BTL cluster time resolution;T_{RECO}-T_{SIM} [ns]", 100, -0.5, 0.5);
+  meCluEnergyRes_ =
+      ibook.book1D("BtlCluEnergyRes", "BTL cluster energy resolution;E_{RECO}-E_{SIM} [MeV]", 100, -0.5, 0.5);
+  meCluTResvsE_ = ibook.bookProfile("BtlCluTResvsE",
+                                    "BTL cluster time resolution vs E;E_{SIM} [MeV];(T_{RECO}-T_{SIM}) [ns]",
+                                    20,
+                                    0.,
+                                    20.,
+                                    -0.5,
+                                    0.5,
+                                    "S");
+  meCluTResvsEta_ = ibook.bookProfile("BtlCluTResvsEta",
+                                      "BTL cluster time resolution vs #eta;|#eta_{RECO}|;(T_{RECO}-T_{SIM}) [ns]",
+                                      30,
+                                      0,
+                                      1.55,
+                                      -0.5,
+                                      0.5,
+                                      "S");
+  meCluTPullvsE_ = ibook.bookProfile("BtlCluTPullvsE",
+                                     "BTL cluster time pull vs E;E_{SIM} [MeV];(T_{RECO}-T_{SIM})/#sigma_{T_{RECO}}",
+                                     20,
+                                     0.,
+                                     20.,
+                                     -5.,
+                                     5.,
+                                     "S");
+  meCluTPullvsEta_ =
+      ibook.bookProfile("BtlCluTPullvsEta",
+                        "BTL cluster time pull vs #eta;|#eta_{RECO}|;(T_{RECO}-T_{SIM})/#sigma_{T_{RECO}}",
+                        30,
+                        0,
+                        1.55,
+                        -5.,
+                        5.,
+                        "S");
+  meCluRhoRes_ =
+      ibook.book1D("BtlCluRhoRes", "BTL cluster #rho resolution;#rho_{RECO}-#rho_{SIM} [cm]", 100, -0.5, 0.5);
+  meCluPhiRes_ =
+      ibook.book1D("BtlCluPhiRes", "BTL cluster #phi resolution;#phi_{RECO}-#phi_{SIM} [rad]", 100, -0.03, 0.03);
+  meCluZRes_ = ibook.book1D("BtlCluZRes", "BTL cluster Z resolution;Z_{RECO}-Z_{SIM} [cm]", 100, -0.2, 0.2);
+  if (LocalPosDebug_) {
+    meCluLocalXRes_ =
+        ibook.book1D("BtlCluLocalXRes", "BTL cluster local X resolution;X_{RECO}-X_{SIM} [cm]", 100, -3.1, 3.1);
+    meCluLocalYRes_ =
+        ibook.book1D("BtlCluLocalYRes", "BTL cluster local Y resolution;Y_{RECO}-Y_{SIM} [cm]", 100, -3.1, 3.1);
+    meCluLocalXPull_ =
+        ibook.book1D("BtlCluLocalXPull", "BTL cluster local X pull;X_{RECO}-X_{SIM}/sigmaX_[RECO]", 100, -5., 5.);
+    meCluLocalYPull_ =
+        ibook.book1D("BtlCluLocalYPull", "BTL cluster local Y pull;Y_{RECO}-Y_{SIM}/sigmaY_[RECO]", 100, -5., 5.);
+    meCluZPull_ = ibook.book1D("BtlCluZPull", "BTL cluster Z pull;Z_{RECO}-Z_{SIM}/sigmaZ_[RECO]", 100, -5., 5.);
+    meCluYXLocal_ = ibook.book2D("BtlCluYXLocal",
+                                 "BTL cluster local Y vs X;X^{local}_{RECO} [cm];Y^{local}_{RECO} [cm]",
+                                 200,
+                                 -9.5,
+                                 9.5,
+                                 200,
+                                 -2.8,
+                                 2.8);
+    meCluYXLocalSim_ = ibook.book2D("BtlCluYXLocalSim",
+                                    "BTL cluster local Y vs X;X^{local}_{SIM} [cm];Y^{local}_{SIM} [cm]",
+                                    200,
+                                    -9.5,
+                                    9.5,
+                                    200,
+                                    -2.8,
+                                    2.8);
+    meCluXLocalErr_ = ibook.book1D("BtlCluXLocalErr", "BTL cluster X local error;sigmaX_{RECO,loc} [cm]", 30, 0., 3.);
+    meCluYLocalErr_ = ibook.book1D("BtlCluYLocalErr", "BTL cluster Y local error;sigmaY_{RECO,loc} [cm]", 30, 0., 0.9);
+  }
+  meUnmatchedCluEnergy_ =
+      ibook.book1D("BtlUnmatchedCluEnergy", "BTL unmatched cluster log10(energy);log10(E_{RECO} [MeV])", 5, -3, 2);
 
   // --- UncalibratedRecHits histograms
 
@@ -531,12 +761,13 @@ void BtlLocalRecoValidation::fillDescriptions(edm::ConfigurationDescriptions& de
   desc.add<edm::InputTag>("uncalibRecHitsTag", edm::InputTag("mtdUncalibratedRecHits", "FTLBarrel"));
   desc.add<edm::InputTag>("simHitsTag", edm::InputTag("mix", "g4SimHitsFastTimerHitsBarrel"));
   desc.add<edm::InputTag>("recCluTag", edm::InputTag("mtdClusters", "FTLBarrel"));
+  desc.add<edm::InputTag>("trkHitTag", edm::InputTag("mtdTrackingRecHits"));
   desc.add<double>("HitMinimumEnergy", 1.);  // [MeV]
   desc.add<bool>("LocalPositionDebug", false);
   desc.add<bool>("UncalibRecHitsPlots", false);
   desc.add<double>("HitMinimumAmplitude", 30.);  // [pC]
 
-  descriptions.add("btlLocalReco", desc);
+  descriptions.add("btlLocalRecoValid", desc);
 }
 
 DEFINE_FWK_MODULE(BtlLocalRecoValidation);

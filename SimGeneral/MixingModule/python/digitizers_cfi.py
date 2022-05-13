@@ -69,7 +69,7 @@ phase2_hfnose.toModify( theDigitizers,
 )
 
 from Configuration.Eras.Modifier_run3_common_cff import run3_common
-run3_common.toModify( theDigitizers, castor = None )
+(run3_common & ~fastSim).toModify( theDigitizers, castor = None )
 
 from SimGeneral.MixingModule.ecalTimeDigitizer_cfi import ecalTimeDigitizer
 from Configuration.Eras.Modifier_phase2_timing_cff import phase2_timing
@@ -101,17 +101,19 @@ premix_stage2.toModify(theDigitizers,
     )
 )
 
+from Configuration.Eras.Modifier_phase2_tracker_cff import phase2_tracker
+phase2_tracker.toModify(theDigitizers,
+                        strip = None)
+
 theDigitizersValid = cms.PSet(theDigitizers)
 theDigitizers.mergedtruth.select.signalOnlyTP = True
 
 from Configuration.ProcessModifiers.run3_ecalclustering_cff import run3_ecalclustering
-(run3_ecalclustering | phase2_hgcal).toModify( theDigitizersValid,
-                       calotruth = cms.PSet( caloParticles ) )
-(premix_stage2 & phase2_hgcal).toModify(theDigitizersValid, calotruth = dict(premixStage1 = True))
+run3_ecalclustering.toModify( theDigitizersValid, 
+                              calotruth = cms.PSet( caloParticles ) )
 
 phase2_timing.toModify( theDigitizersValid.mergedtruth,
                         createInitialVertexCollection = cms.bool(True) )
-
 
 from Configuration.ProcessModifiers.premix_stage1_cff import premix_stage1
 def _customizePremixStage1(mod):

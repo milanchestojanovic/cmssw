@@ -15,13 +15,10 @@
 //         Created:  Thu Jun 21 08:59:42 CDT 2007
 //
 
-//#include "RecoEcal/EnergyScaleAnalyzer/interface/EnergyScaleAnalyzer.h"
-#include "RecoEcal/EgammaClusterProducers/interface/PreshowerClusterProducer.h"
 #include "Validation/EcalClusters/interface/EnergyScaleAnalyzer.h"
 
 // Framework
 #include "DataFormats/Common/interface/Handle.h"
-#include "FWCore/Framework/interface/EDAnalyzer.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
@@ -58,7 +55,6 @@
 #include "DataFormats/EgammaCandidates/interface/GsfElectronFwd.h"
 #include "DataFormats/EgammaReco/interface/ClusterShape.h"
 #include "DataFormats/EgammaReco/interface/ClusterShapeFwd.h"
-#include "RecoEcal/EgammaClusterProducers/interface/HybridClusterProducer.h"
 #include "RecoEcal/EgammaCoreTools/interface/ClusterShapeAlgo.h"
 #include "RecoEcal/EgammaCoreTools/interface/PositionCalc.h"
 

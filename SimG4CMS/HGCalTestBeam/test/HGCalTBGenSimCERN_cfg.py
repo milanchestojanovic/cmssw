@@ -1,6 +1,7 @@
 import FWCore.ParameterSet.Config as cms
+from Configuration.Eras.Modifier_hgcaltb_cff import hgcaltb
 
-process = cms.Process('SIM')
+process = cms.Process('SIM', hgcaltb)
 
 # import of standard configurations
 process.load('Configuration.StandardSequences.Services_cff')
@@ -99,8 +100,10 @@ process.VtxSmeared.MinX = -7.5
 process.VtxSmeared.MaxX =  7.5
 process.VtxSmeared.MinY = -7.5
 process.VtxSmeared.MaxY =  7.5
-process.HGCalTBAnalyzer.DoDigis = False
-process.HGCalTBAnalyzer.DoRecHits = False
+process.HGCalTBAnalyzer.doDigis = False
+process.HGCalTBAnalyzer.doRecHits = False
+process.g4SimHits.HGCSD.Detectors = 1
+process.g4SimHits.HGCSD.UseDetector = 1
 
 # Path and EndPath definitions
 process.generation_step = cms.Path(process.pgen)

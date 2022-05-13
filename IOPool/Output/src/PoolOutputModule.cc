@@ -62,8 +62,10 @@ namespace edm {
         branchChildren_(),
         overrideInputFileSplitLevels_(pset.getUntrackedParameter<bool>("overrideInputFileSplitLevels")),
         compactEventAuxiliary_(pset.getUntrackedParameter<bool>("compactEventAuxiliary")),
+        mergeJob_(pset.getUntrackedParameter<bool>("mergeJob")),
         rootOutputFile_(),
-        statusFileName_() {
+        statusFileName_(),
+        overrideGUID_(pset.getUntrackedParameter<std::string>("overrideGUID")) {
     if (pset.getUntrackedParameter<bool>("writeStatusFile")) {
       std::ostringstream statusfilename;
       statusfilename << moduleLabel_ << '_' << getpid();
@@ -119,13 +121,6 @@ namespace edm {
 
   PoolOutputModule::AuxItem::AuxItem() : basketSize_(BranchDescription::invalidBasketSize) {}
 
-  PoolOutputModule::OutputItem::OutputItem()
-      : branchDescription_(nullptr),
-        token_(),
-        product_(nullptr),
-        splitLevel_(BranchDescription::invalidSplitLevel),
-        basketSize_(BranchDescription::invalidBasketSize) {}
-
   PoolOutputModule::OutputItem::OutputItem(BranchDescription const* bd,
                                            EDGetToken const& token,
                                            int splitLevel,
@@ -175,23 +170,28 @@ namespace edm {
     return std::regex(tmp);
   }
 
-  void PoolOutputModule::fillSelectedItemList(BranchType branchType, TTree* theInputTree) {
+  void PoolOutputModule::fillSelectedItemList(BranchType branchType,
+                                              std::string const& processName,
+                                              TTree* theInputTree,
+                                              OutputItemList& outputItemList) {
     SelectedProducts const& keptVector = keptProducts()[branchType];
-    OutputItemList& outputItemList = selectedOutputItemList_[branchType];
-    AuxItem& auxItem = auxItems_[branchType];
 
-    auto basketSize = (InEvent == branchType) ? eventAuxBasketSize_ : basketSize_;
+    if (branchType != InProcess) {
+      AuxItem& auxItem = auxItems_[branchType];
 
-    // Fill AuxItem
-    if (theInputTree != nullptr && !overrideInputFileSplitLevels_) {
-      TBranch* auxBranch = theInputTree->GetBranch(BranchTypeToAuxiliaryBranchName(branchType).c_str());
-      if (auxBranch) {
-        auxItem.basketSize_ = auxBranch->GetBasketSize();
+      auto basketSize = (InEvent == branchType) ? eventAuxBasketSize_ : basketSize_;
+
+      // Fill AuxItem
+      if (theInputTree != nullptr && !overrideInputFileSplitLevels_) {
+        TBranch* auxBranch = theInputTree->GetBranch(BranchTypeToAuxiliaryBranchName(branchType).c_str());
+        if (auxBranch) {
+          auxItem.basketSize_ = auxBranch->GetBasketSize();
+        } else {
+          auxItem.basketSize_ = basketSize;
+        }
       } else {
         auxItem.basketSize_ = basketSize;
       }
-    } else {
-      auxItem.basketSize_ = basketSize;
     }
 
     // Fill outputItemList with an entry for each branch.
@@ -200,6 +200,9 @@ namespace edm {
       int basketSize = BranchDescription::invalidBasketSize;
 
       BranchDescription const& prod = *kept.first;
+      if (branchType == InProcess && processName != prod.processName()) {
+        continue;
+      }
       TBranch* theBranch = ((!prod.produced() && theInputTree != nullptr && !overrideInputFileSplitLevels_)
                                 ? theInputTree->GetBranch(prod.branchName().c_str())
                                 : nullptr);
@@ -247,15 +250,29 @@ namespace edm {
 
   void PoolOutputModule::respondToOpenInputFile(FileBlock const& fb) {
     if (!initializedFromInput_) {
-      for (int i = InEvent; i < NumBranchTypes; ++i) {
-        if (i == InProcess) {
-          // ProcessBlock output not implemented yet
-          continue;
-        }
+      std::vector<std::string> const& processesWithProcessBlockProducts =
+          outputProcessBlockHelper().processesWithProcessBlockProducts();
+      unsigned int numberOfProcessesWithProcessBlockProducts = processesWithProcessBlockProducts.size();
+      unsigned int numberOfTTrees = numberOfRunLumiEventProductTrees + numberOfProcessesWithProcessBlockProducts;
+      selectedOutputItemList_.resize(numberOfTTrees);
+
+      for (unsigned int i = InEvent; i < NumBranchTypes; ++i) {
         BranchType branchType = static_cast<BranchType>(i);
-        TTree* theInputTree =
-            (branchType == InEvent ? fb.tree() : (branchType == InLumi ? fb.lumiTree() : fb.runTree()));
-        fillSelectedItemList(branchType, theInputTree);
+        if (branchType != InProcess) {
+          std::string processName;
+          TTree* theInputTree =
+              (branchType == InEvent ? fb.tree() : (branchType == InLumi ? fb.lumiTree() : fb.runTree()));
+          OutputItemList& outputItemList = selectedOutputItemList_[branchType];
+          fillSelectedItemList(branchType, processName, theInputTree, outputItemList);
+        } else {
+          // Handle output items in ProcessBlocks
+          for (unsigned int k = InProcess; k < numberOfTTrees; ++k) {
+            OutputItemList& outputItemList = selectedOutputItemList_[k];
+            std::string const& processName = processesWithProcessBlockProducts[k - InProcess];
+            TTree* theInputTree = fb.processBlockTree(processName);
+            fillSelectedItemList(branchType, processName, theInputTree, outputItemList);
+          }
+        }
       }
       initializedFromInput_ = true;
     }
@@ -290,6 +307,8 @@ namespace edm {
 
   void PoolOutputModule::writeRun(RunForOutput const& r) { rootOutputFile_->writeRun(r); }
 
+  void PoolOutputModule::writeProcessBlock(ProcessBlockForOutput const& pb) { rootOutputFile_->writeProcessBlock(pb); }
+
   void PoolOutputModule::reallyCloseFile() {
     writeEventAuxiliary();
     fillDependencyGraph();
@@ -306,6 +325,7 @@ namespace edm {
     writeBranchIDListRegistry();
     writeThinnedAssociationsHelper();
     writeProductDependencies();  //branchChildren used here
+    writeProcessBlockHelper();
     branchChildren_.clear();
     finishEndFile();
 
@@ -329,6 +349,7 @@ namespace edm {
   void PoolOutputModule::writeThinnedAssociationsHelper() { rootOutputFile_->writeThinnedAssociationsHelper(); }
   void PoolOutputModule::writeProductDependencies() { rootOutputFile_->writeProductDependencies(); }
   void PoolOutputModule::writeEventAuxiliary() { rootOutputFile_->writeEventAuxiliary(); }
+  void PoolOutputModule::writeProcessBlockHelper() { rootOutputFile_->writeProcessBlockHelper(); }
   void PoolOutputModule::finishEndFile() {
     rootOutputFile_->finishEndFile();
     rootOutputFile_ = nullptr;
@@ -366,11 +387,14 @@ namespace edm {
 
   void PoolOutputModule::reallyOpenFile() {
     auto names = physicalAndLogicalNameForNewFile();
-    rootOutputFile_ = std::make_unique<RootOutputFile>(
-        this,
-        names.first,
-        names.second,
-        processesWithSelectedMergeableRunProducts_);  // propagate_const<T> has no reset() function
+    rootOutputFile_ = std::make_unique<RootOutputFile>(this,
+                                                       names.first,
+                                                       names.second,
+                                                       processesWithSelectedMergeableRunProducts_,
+                                                       overrideGUID_);  // propagate_const<T> has no reset() function
+    // Override the GUID of the first file only, in order to avoid two
+    // output files from one Output Module to have identical GUID.
+    overrideGUID_.clear();
   }
 
   void PoolOutputModule::updateBranchParentsForOneBranch(ProductProvenanceRetriever const* provRetriever,
@@ -440,10 +464,10 @@ namespace edm {
         ->setComment(
             "Maximum output file size, in kB.\n"
             "If over maximum, new output file will be started at next input file transition.");
-    desc.addUntracked<int>("compressionLevel", 9)->setComment("ROOT compression level of output file.");
-    desc.addUntracked<std::string>("compressionAlgorithm", "ZLIB")
+    desc.addUntracked<int>("compressionLevel", 4)->setComment("ROOT compression level of output file.");
+    desc.addUntracked<std::string>("compressionAlgorithm", "ZSTD")
         ->setComment(
-            "Algorithm used to compress data in the ROOT output file, allowed values are ZLIB, LZMA, and ZSTD");
+            "Algorithm used to compress data in the ROOT output file, allowed values are ZLIB, LZMA, LZ4, and ZSTD");
     desc.addUntracked<int>("basketSize", 16384)->setComment("Default ROOT basket size in output file.");
     desc.addUntracked<int>("eventAuxiliaryBasketSize", 16384)
         ->setComment("Default ROOT basket size in output file for EventAuxiliary branch.");
@@ -464,10 +488,14 @@ namespace edm {
         ->setComment(
             "True:  Allow fast copying, if possible.\n"
             "False: Disable fast copying.");
+    desc.addUntracked("mergeJob", false)
+        ->setComment(
+            "If set to true and fast copying is disabled, copy input file compression and basket sizes to the output "
+            "file.");
     desc.addUntracked<bool>("compactEventAuxiliary", false)
         ->setComment(
             "False: Write EventAuxiliary as we go like any other event metadata branch.\n"
-            "True:  Optimize the file layout be deferring writing the EventAuxiliary branch until the output file is "
+            "True:  Optimize the file layout by deferring writing the EventAuxiliary branch until the output file is "
             "closed.");
     desc.addUntracked<bool>("overrideInputFileSplitLevels", false)
         ->setComment(
@@ -484,6 +512,11 @@ namespace edm {
             "'PRIOR':   Keep it for products produced in current process. Drop it for products produced in prior "
             "processes.\n"
             "'ALL':     Drop all of it.");
+    desc.addUntracked<std::string>("overrideGUID", defaultString)
+        ->setComment(
+            "Allows to override the GUID of the file. Intended to be used only in Tier0 for re-creating files.\n"
+            "The GUID needs to be of the proper format. If a new output file is started (see maxSize), the GUID of\n"
+            "the first file only is overridden, i.e. the subsequent output files have different, generated GUID.");
     {
       ParameterSetDescription dataSet;
       dataSet.setAllowAnything();

@@ -56,15 +56,17 @@ public:
 
 private:
   virtual void checkBookAPVColls(const edm::EventSetup& setup);
-  virtual void checkAndRetrieveTopology(const edm::EventSetup& setup);
   void dqmEndJob(DQMStore::IBooker& ibooker_, DQMStore::IGetter& igetter_) override;
-
   void gainQualityMonitor(DQMStore::IBooker& ibooker_, const MonitorElement* Charge_Vs_Index) const;
-
+  void storeGainsTree(const TAxis* chVsIdxXaxis) const;
   int statCollectionFromMode(const char* tag) const;
 
   void algoComputeMPVandGain(const MonitorElement* Charge_Vs_Index);
-  void getPeakOfLandau(TH1* InputHisto, double* FitResults, double LowRange = 50, double HighRange = 5400);
+  void getPeakOfLandau(TH1* InputHisto,
+                       double* FitResults,
+                       double LowRange = 50,
+                       double HighRange = 5400,
+                       bool gaussianConvolution = false);
   bool IsGoodLandauFit(double* FitResults);
 
   bool produceTagFilter(const MonitorElement* Charge_Vs_Index);
@@ -72,6 +74,7 @@ private:
 
   bool doStoreOnDB;
   bool doChargeMonitorPerPlane; /*!< Charge monitor per detector plane */
+  bool storeGainsTree_;
   unsigned int GOOD;
   unsigned int BAD;
   unsigned int MASKED;
@@ -94,7 +97,7 @@ private:
   int CalibrationLevel;
 
   const TrackerGeometry* bareTkGeomPtr_ = nullptr;  // ugly hack to fill APV colls only once, but checks
-  const TrackerTopology* tTopo_ = nullptr;
+  std::unique_ptr<TrackerTopology> tTopo_;
 
   std::vector<std::shared_ptr<stAPVGain> > APVsCollOrdered;
   std::unordered_map<unsigned int, std::shared_ptr<stAPVGain> > APVsColl;
@@ -103,4 +106,9 @@ private:
   edm::ESGetToken<TrackerGeometry, TrackerDigiGeometryRecord> tkGeomToken_;
   edm::ESGetToken<SiStripGain, SiStripGainRcd> gainToken_;
   edm::ESGetToken<SiStripQuality, SiStripQualityRcd> qualityToken_;
+
+  // fit options
+  bool fit_gaussianConvolution_ = false;
+  bool fit_gaussianConvolutionTOBL56_ = false;
+  bool fit_dataDrivenRange_ = false;
 };

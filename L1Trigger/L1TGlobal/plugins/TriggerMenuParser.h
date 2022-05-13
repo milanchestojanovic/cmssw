@@ -17,6 +17,9 @@
  *                - correlations with overlap object removal
  * \author R. Cavanaugh
  *                - displaced muons
+ * \author Elisa Fontanesi                                                                               
+ *                - extended for three-body correlation conditions                                                               
+ *                                                                  
  *
  * $Date$
  * $Revision$
@@ -30,9 +33,11 @@
 #include "L1Trigger/L1TGlobal/interface/TriggerMenuFwd.h"
 
 #include "L1Trigger/L1TGlobal/interface/MuonTemplate.h"
+#include "L1Trigger/L1TGlobal/interface/MuonShowerTemplate.h"
 #include "L1Trigger/L1TGlobal/interface/CaloTemplate.h"
 #include "L1Trigger/L1TGlobal/interface/EnergySumTemplate.h"
 #include "L1Trigger/L1TGlobal/interface/CorrelationTemplate.h"
+#include "L1Trigger/L1TGlobal/interface/CorrelationThreeBodyTemplate.h"
 #include "L1Trigger/L1TGlobal/interface/CorrelationWithOverlapRemovalTemplate.h"
 #include "L1Trigger/L1TGlobal/interface/ExternalTemplate.h"
 
@@ -121,6 +126,12 @@ namespace l1t {
     void setVecMuonTemplate(const std::vector<std::vector<MuonTemplate> >&);
 
     //
+    inline const std::vector<std::vector<MuonShowerTemplate> >& vecMuonShowerTemplate() const {
+      return m_vecMuonShowerTemplate;
+    }
+    void setVecMuonShowerTemplate(const std::vector<std::vector<MuonShowerTemplate> >&);
+
+    //
     inline const std::vector<std::vector<CaloTemplate> >& vecCaloTemplate() const { return m_vecCaloTemplate; }
 
     void setVecCaloTemplate(const std::vector<std::vector<CaloTemplate> >&);
@@ -133,7 +144,6 @@ namespace l1t {
     void setVecEnergySumTemplate(const std::vector<std::vector<EnergySumTemplate> >&);
 
     //
-
     inline const std::vector<std::vector<ExternalTemplate> >& vecExternalTemplate() const {
       return m_vecExternalTemplate;
     }
@@ -147,6 +157,14 @@ namespace l1t {
 
     void setVecCorrelationTemplate(const std::vector<std::vector<CorrelationTemplate> >&);
 
+    //
+    inline const std::vector<std::vector<CorrelationThreeBodyTemplate> >& vecCorrelationThreeBodyTemplate() const {
+      return m_vecCorrelationThreeBodyTemplate;
+    }
+
+    void setVecCorrelationThreeBodyTemplate(const std::vector<std::vector<CorrelationThreeBodyTemplate> >&);
+
+    //
     inline const std::vector<std::vector<CorrelationWithOverlapRemovalTemplate> >&
     vecCorrelationWithOverlapRemovalTemplate() const {
       return m_vecCorrelationWithOverlapRemovalTemplate;
@@ -255,6 +273,9 @@ namespace l1t {
 
     bool parseMuonCorr(const tmeventsetup::esObject* condMu, unsigned int chipNr = 0);
 
+    /// parse a muon shower condition
+    bool parseMuonShower(tmeventsetup::esCondition condMu, unsigned int chipNr = 0, const bool corrFlag = false);
+
     /// parse a calorimeter condition
     /*     bool parseCalo(XERCES_CPP_NAMESPACE::DOMNode* node, */
     /*             const std::string& name, unsigned int chipNr = 0, */
@@ -276,6 +297,9 @@ namespace l1t {
 
     /// parse a correlation condition
     bool parseCorrelation(tmeventsetup::esCondition corrCond, unsigned int chipNr = 0);
+
+    /// parse a three-body correlation condition
+    bool parseCorrelationThreeBody(tmeventsetup::esCondition corrCond, unsigned int chipNr = 0);
 
     /// parse a correlation condition with overlap removal
     bool parseCorrelationWithOverlapRemoval(const tmeventsetup::esCondition& corrCond, unsigned int chipNr = 0);
@@ -369,11 +393,13 @@ namespace l1t {
     /// vectors containing the conditions
     /// explicit, due to persistency...
     std::vector<std::vector<MuonTemplate> > m_vecMuonTemplate;
+    std::vector<std::vector<MuonShowerTemplate> > m_vecMuonShowerTemplate;
     std::vector<std::vector<CaloTemplate> > m_vecCaloTemplate;
     std::vector<std::vector<EnergySumTemplate> > m_vecEnergySumTemplate;
     std::vector<std::vector<ExternalTemplate> > m_vecExternalTemplate;
 
     std::vector<std::vector<CorrelationTemplate> > m_vecCorrelationTemplate;
+    std::vector<std::vector<CorrelationThreeBodyTemplate> > m_vecCorrelationThreeBodyTemplate;
     std::vector<std::vector<CorrelationWithOverlapRemovalTemplate> > m_vecCorrelationWithOverlapRemovalTemplate;
     std::vector<std::vector<MuonTemplate> > m_corMuonTemplate;
     std::vector<std::vector<CaloTemplate> > m_corCaloTemplate;

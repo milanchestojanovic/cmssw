@@ -48,7 +48,6 @@
 
 // user include files
 #include "FWCore/Framework/interface/Frameworkfwd.h"
-#include "FWCore/Framework/interface/EDAnalyzer.h"
 
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
@@ -250,8 +249,7 @@ namespace cms {
     std::vector<edm::DetSet<PixelDigiSimLink> > theDigiLinkVector;
 
     if (firstFinalizeEvent_) {
-      const unsigned int bunchspace = PileupInfo_->getMix_bunchSpacing();
-      _pixeldigialgo->init_DynIneffDB(iSetup, bunchspace);
+      _pixeldigialgo->init_DynIneffDB(iSetup);
       firstFinalizeEvent_ = false;
     }
     _pixeldigialgo->calculateInstlumiFactor(PileupInfo_.get());

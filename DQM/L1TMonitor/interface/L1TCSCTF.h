@@ -14,7 +14,6 @@
 
 // user include files
 #include "FWCore/Framework/interface/Frameworkfwd.h"
-#include "FWCore/Framework/interface/EDAnalyzer.h"
 
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
@@ -188,6 +187,8 @@ private:
   edm::EDGetTokenT<L1CSCTrackCollection> tracksToken_;
   edm::EDGetTokenT<CSCTriggerContainer<csctf::TrackStub> > dtStubsToken_;
   edm::EDGetTokenT<L1CSCTrackCollection> mbtracksToken_;
+  edm::ESGetToken<L1MuTriggerScales, L1MuTriggerScalesRcd> l1muTscalesToken_;
+  edm::ESGetToken<L1MuTriggerPtScale, L1MuTriggerPtScaleRcd> ptscalesToken_;
 };
 
 #endif

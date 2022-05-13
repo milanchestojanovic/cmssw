@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import ROOT
 import argparse
 from collections import defaultdict
@@ -24,6 +24,8 @@ treenames = {
     9: "TH3Fs",
     10: "TProfiles",
     11: "TProfile2Ds",
+    12: "TH1Is",
+    13: "TH2Is"
 }
 
 f = ROOT.TFile.Open(args.inputfile)

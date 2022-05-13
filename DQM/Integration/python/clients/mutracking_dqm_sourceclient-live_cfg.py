@@ -3,7 +3,8 @@ import FWCore.ParameterSet.Config as cms
 
 import sys
 from Configuration.Eras.Era_Run2_2018_pp_on_AA_cff import Run2_2018_pp_on_AA
-process = cms.Process("MUTRKDQM", Run2_2018_pp_on_AA)
+from Configuration.Eras.Era_Run3_cff import Run3
+process = cms.Process("MUTRKDQM", Run3)
 
 live=True
 unitTest=False
@@ -159,9 +160,9 @@ process.hltTriggerTypeFilter = cms.EDFilter("HLTTriggerTypeFilter",
 # HLT trigger selection (HLT_ZeroBias)
 # modified for 0 Tesla HLT menu (no ZeroBias_*)
 process.load('HLTrigger.HLTfilters.hltHighLevel_cfi')
-process.hltHighLevel.HLTPaths = cms.vstring('HLT*Mu*','HLT_*Physics*')
-process.hltHighLevel.andOr = cms.bool(True)
-process.hltHighLevel.throw =  cms.bool(False)
+process.hltHighLevel.HLTPaths = ['HLT*Mu*','HLT_*Physics*']
+process.hltHighLevel.andOr = True
+process.hltHighLevel.throw =  False
 
 
 #-----------------------------                                                                                                     
@@ -188,5 +189,6 @@ process.allPaths = cms.Path(process.hltHighLevel *
 from DQM.Integration.config.online_customizations_cfi import *
 
 process = customise(process)
-
+process.options.wantSummary = cms.untracked.bool(True)
+print("Final Source settings:", process.source)
 

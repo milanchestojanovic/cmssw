@@ -1,6 +1,7 @@
 import FWCore.ParameterSet.Config as cms
 
-process = cms.Process("DQM")
+from Configuration.Eras.Era_Run3_cff import Run3
+process = cms.Process("DQM", Run3)
 process.options = cms.untracked.PSet(
   SkipEvent = cms.untracked.vstring('ProductNotFound') 
 )
@@ -97,7 +98,7 @@ process.load("DQM.HLTEvF.TrigResRateMon_cfi")
 
 # run on 1 out of 8 SM, LSSize 23 -> 23/8 = 2.875
 # stream is prescaled by 10, to correct change LSSize 23 -> 23/10 = 2.3
-process.trRateMon.LuminositySegmentSize = cms.untracked.double(2.3)
+process.trRateMon.LuminositySegmentSize = 2.3
 
 
 # Add RawToDigi

@@ -1,7 +1,8 @@
 import FWCore.ParameterSet.Config as cms
 import sys
 
-process = cms.Process("DQM")
+from Configuration.Eras.Era_Run3_cff import Run3
+process = cms.Process("DQM", Run3)
 
 unitTest = False
 if 'unitTest=True' in sys.argv:
@@ -45,7 +46,7 @@ process.dqmSaverPB.runNumber = options.runNumber
 # Digitisation: produce the Scalers digis containing DCS bits
 process.load("EventFilter.ScalersRawToDigi.ScalersRawToDigi_cfi")
 # Digitisation: produce the TCDS digis containing BST record
-from EventFilter.Utilities.tcdsRawToDigi_cfi import *
+from EventFilter.OnlineMetaDataRawToDigi.tcdsRawToDigi_cfi import *
 process.tcdsDigis = tcdsRawToDigi.clone()
 
 # OnlineMetaDataRawToDigi will put DCSRecord to an event
@@ -70,12 +71,13 @@ process.dqmProvInfo.runType = process.runType.getRunTypeName()
 
 # Heavy Ion Specific Fed Raw Data Collection Label
 if (process.runType.getRunType() == process.runType.hi_run):
-    process.scalersRawToDigi.scalersInputTag = cms.InputTag("rawDataRepacker")
-    process.tcdsDigis.InputLabel = cms.InputTag("rawDataRepacker")
+    process.scalersRawToDigi.scalersInputTag = "rawDataRepacker"
+    process.tcdsDigis.InputLabel = "rawDataRepacker"
 else:
-    process.scalersRawToDigi.scalersInputTag = cms.InputTag("rawDataCollector")
-    process.tcdsDigis.InputLabel = cms.InputTag("rawDataCollector")
+    process.scalersRawToDigi.scalersInputTag = "rawDataCollector"
+    process.tcdsDigis.InputLabel = "rawDataCollector"
 
 # Process customizations included here
 from DQM.Integration.config.online_customizations_cfi import *
 process = customise(process)
+print("Final Source settings:", process.source)

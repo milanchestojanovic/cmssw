@@ -29,6 +29,8 @@ L1TGMT::L1TGMT(const ParameterSet& ps)
       trsrc_old_(0) {
   if (verbose_)
     cout << "L1TGMT: constructor...." << endl;
+  l1muTrigscaleToken_ = esConsumes<edm::Transition::BeginRun>();
+  l1TrigptscaleToken_ = esConsumes<edm::Transition::BeginRun>();
 }
 
 L1TGMT::~L1TGMT() {}
@@ -200,12 +202,12 @@ void L1TGMT::analyze(const Event& e, const EventSetup& c) {
     //    if( (Ev - evnum_old_) == 1 && bxnum_old_ > -1 ) {
     // assume getting all events in a sequence (usefull only from reco data)
     if (bxnum_old_ > -1) {
-      int dBx = Bx - bxnum_old_ + 3564 * (e.orbitNumber() - obnum_old_);
+      float dBx = Bx - bxnum_old_ + 3564.0 * (e.orbitNumber() - obnum_old_);
       for (int id = 0; id < 4; id++) {
         if (trsrc_old_ & (1 << id)) {
           for (int i = 0; i < 4; i++) {
             if (nSUBS[i])
-              subs_dbx[i]->Fill(float(dBx), float(id));
+              subs_dbx[i]->Fill(dBx, float(id));
           }
         }
       }
@@ -239,13 +241,8 @@ double L1TGMT::phiconv_(float phi) {
 void L1TGMT::bookHistograms(DQMStore::IBooker& ibooker, edm::Run const&, edm::EventSetup const& c) {
   std::string subs[5] = {"DTTF", "RPCb", "CSCTF", "RPCf", "GMT"};
 
-  edm::ESHandle<L1MuTriggerScales> trigscales_h;
-  c.get<L1MuTriggerScalesRcd>().get(trigscales_h);
-  const L1MuTriggerScales* scales = trigscales_h.product();
-
-  edm::ESHandle<L1MuTriggerPtScale> trigptscale_h;
-  c.get<L1MuTriggerPtScaleRcd>().get(trigptscale_h);
-  const L1MuTriggerPtScale* scalept = trigptscale_h.product();
+  const L1MuTriggerScales* scales = &c.getData(l1muTrigscaleToken_);
+  const L1MuTriggerPtScale* scalept = &c.getData(l1TrigptscaleToken_);
 
   ibooker.setCurrentFolder("L1T/L1TGMT");
 

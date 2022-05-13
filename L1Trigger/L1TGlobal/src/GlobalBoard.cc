@@ -11,6 +11,7 @@
  * \author: Vasile Mihai Ghete   - HEPHY Vienna - CMSSW version
  * \author: Vladimir Rekovic     - add correlation with overlap removal cases
  *                               - fractional prescales
+ * \author: Elisa Fontanesi      - extended for three-body correlation conditions
  *
  * $Date$
  * $Revision$
@@ -20,19 +21,18 @@
 // this class header
 #include "L1Trigger/L1TGlobal/interface/GlobalBoard.h"
 
-// system include files
-#include <ext/hash_map>
-
 // user include files
 #include "DataFormats/L1TGlobal/interface/GlobalObjectMap.h"
 #include "L1Trigger/L1TGlobal/interface/TriggerMenu.h"
 #include "L1Trigger/L1TGlobal/interface/GlobalAlgorithm.h"
 
 #include "L1Trigger/L1TGlobal/interface/MuonTemplate.h"
+#include "L1Trigger/L1TGlobal/interface/MuonShowerTemplate.h"
 #include "L1Trigger/L1TGlobal/interface/CaloTemplate.h"
 #include "L1Trigger/L1TGlobal/interface/EnergySumTemplate.h"
 #include "L1Trigger/L1TGlobal/interface/ExternalTemplate.h"
 #include "L1Trigger/L1TGlobal/interface/CorrelationTemplate.h"
+#include "L1Trigger/L1TGlobal/interface/CorrelationThreeBodyTemplate.h"
 #include "L1Trigger/L1TGlobal/interface/CorrelationWithOverlapRemovalTemplate.h"
 #include "L1Trigger/L1TGlobal/interface/GlobalCondition.h"
 #include "L1Trigger/L1TGlobal/interface/CorrCondition.h"
@@ -43,10 +43,13 @@
 
 // Conditions for uGt
 #include "L1Trigger/L1TGlobal/interface/MuCondition.h"
+#include "L1Trigger/L1TGlobal/interface/MuonShowerCondition.h"
 #include "L1Trigger/L1TGlobal/interface/CaloCondition.h"
 #include "L1Trigger/L1TGlobal/interface/EnergySumCondition.h"
 #include "L1Trigger/L1TGlobal/interface/ExternalCondition.h"
-
+#include "L1Trigger/L1TGlobal/interface/CorrCondition.h"
+#include "L1Trigger/L1TGlobal/interface/CorrThreeBodyCondition.h"
+#include "L1Trigger/L1TGlobal/interface/CorrWithOverlapRemovalCondition.h"
 #include "FWCore/Utilities/interface/Exception.h"
 
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
@@ -59,6 +62,7 @@
 // constructor
 l1t::GlobalBoard::GlobalBoard()
     : m_candL1Mu(new BXVector<const l1t::Muon*>),
+      m_candL1MuShower(new BXVector<const l1t::MuonShower*>),
       m_candL1EG(new BXVector<const l1t::L1Candidate*>),
       m_candL1Tau(new BXVector<const l1t::L1Candidate*>),
       m_candL1Jet(new BXVector<const l1t::L1Candidate*>),
@@ -90,6 +94,7 @@ l1t::GlobalBoard::GlobalBoard()
 l1t::GlobalBoard::~GlobalBoard() {
   //reset();  //why would we need a reset?
   delete m_candL1Mu;
+  delete m_candL1MuShower;
   delete m_candL1EG;
   delete m_candL1Tau;
   delete m_candL1Jet;
@@ -106,6 +111,7 @@ void l1t::GlobalBoard::setBxLast(int bx) { m_bxLast_ = bx; }
 
 void l1t::GlobalBoard::init(const int numberPhysTriggers,
                             const int nrL1Mu,
+                            const int nrL1MuShower,
                             const int nrL1EG,
                             const int nrL1Tau,
                             const int nrL1Jet,
@@ -115,6 +121,7 @@ void l1t::GlobalBoard::init(const int numberPhysTriggers,
   setBxLast(bxLast);
 
   m_candL1Mu->setBXRange(m_bxFirst_, m_bxLast_);
+  m_candL1MuShower->setBXRange(m_bxFirst_, m_bxLast_);
   m_candL1EG->setBXRange(m_bxFirst_, m_bxLast_);
   m_candL1Tau->setBXRange(m_bxFirst_, m_bxLast_);
   m_candL1Jet->setBXRange(m_bxFirst_, m_bxLast_);
@@ -383,6 +390,54 @@ void l1t::GlobalBoard::receiveMuonObjectData(edm::Event& iEvent,
   }  //end if ReveiveMuon data
 }
 
+// receive muon shower data from Global Muon Trigger
+void l1t::GlobalBoard::receiveMuonShowerObjectData(edm::Event& iEvent,
+                                                   const edm::EDGetTokenT<BXVector<l1t::MuonShower>>& muShowerInputToken,
+                                                   const bool receiveMuShower,
+                                                   const int nrL1MuShower) {
+  // get data from Global Muon Trigger
+  if (receiveMuShower) {
+    edm::Handle<BXVector<l1t::MuonShower>> muonData;
+    iEvent.getByToken(muShowerInputToken, muonData);
+
+    if (!muonData.isValid()) {
+      if (m_verbosity) {
+        edm::LogWarning("L1TGlobal") << "\nWarning: BXVector<l1t::MuonShower> with input tag "
+                                     << "\nrequested in configuration, but not found in the event.\n"
+                                     << std::endl;
+      }
+    } else {
+      //Loop over Muon Showers in this bx
+      int nObj = 0;
+      for (auto mu = muonData->begin(0); mu != muonData->end(0); ++mu) {
+        if (nObj < nrL1MuShower) {
+          /* Important here to split up the single object into 4 separate MuonShower
+             bits for the global board. This is because the UTM library considers those bits separate as well
+           */
+          l1t::MuonShower mus0;
+          l1t::MuonShower mus1;
+          l1t::MuonShower musOutOfTime0;
+          l1t::MuonShower musOutOfTime1;
+
+          mus0.setMus0(mu->mus0());
+          mus1.setMus1(mu->mus1());
+          musOutOfTime0.setMusOutOfTime0(mu->musOutOfTime0());
+          musOutOfTime1.setMusOutOfTime1(mu->musOutOfTime1());
+
+          (*m_candL1MuShower).push_back(0, &mus0);
+          (*m_candL1MuShower).push_back(0, &mus1);
+          (*m_candL1MuShower).push_back(0, &musOutOfTime0);
+          (*m_candL1MuShower).push_back(0, &musOutOfTime1);
+        } else {
+          edm::LogWarning("L1TGlobal") << " Too many Muon Showers (" << nObj
+                                       << ") for uGT Configuration maxMuShower =" << nrL1MuShower << std::endl;
+        }
+        nObj++;
+      }  //end loop over muon showers in bx
+    }    //end if over valid muon shower data
+  }      //end if ReveiveMuonShower data
+}
+
 // receive data from Global External Conditions
 void l1t::GlobalBoard::receiveExternalData(edm::Event& iEvent,
                                            const edm::EDGetTokenT<BXVector<GlobalExtBlk>>& extInputToken,
@@ -434,6 +489,7 @@ void l1t::GlobalBoard::runGTL(edm::Event& iEvent,
                               std::unique_ptr<GlobalObjectMapRecord>& gtObjectMapRecord,
                               const unsigned int numberPhysTriggers,
                               const int nrL1Mu,
+                              const int nrL1MuShower,
                               const int nrL1EG,
                               const int nrL1Tau,
                               const int nrL1Jet) {
@@ -503,6 +559,24 @@ void l1t::GlobalBoard::runGTL(edm::Event& iEvent,
             LogTrace("L1TGlobal") << myCout.str() << std::endl;
           }
           //delete muCondition;
+
+        } break;
+        case CondMuonShower: {
+          MuonShowerCondition* muShowerCondition = new MuonShowerCondition(itCond->second, this, nrL1MuShower);
+
+          muShowerCondition->setVerbosity(m_verbosity);
+
+          muShowerCondition->evaluateConditionStoreResult(iBxInEvent);
+
+          cMapResults[itCond->first] = muShowerCondition;
+
+          if (m_verbosity && m_isDebugEnabled) {
+            std::ostringstream myCout;
+            muShowerCondition->print(myCout);
+
+            edm::LogWarning("L1TGlobal") << "MuonShowerCondition " << myCout.str() << std::endl;
+          }
+          //delete muShowerCondition;
 
         } break;
         case CondCalo: {
@@ -627,6 +701,60 @@ void l1t::GlobalBoard::runGTL(edm::Event& iEvent,
           //  		delete correlationCond;
 
         } break;
+        case CondCorrelationThreeBody: {
+          // get first the sub-conditions
+          const CorrelationThreeBodyTemplate* corrTemplate =
+              static_cast<const CorrelationThreeBodyTemplate*>(itCond->second);
+          const GtConditionCategory cond0Categ = corrTemplate->cond0Category();
+          const GtConditionCategory cond1Categ = corrTemplate->cond1Category();
+          const GtConditionCategory cond2Categ = corrTemplate->cond2Category();
+          const int cond0Ind = corrTemplate->cond0Index();
+          const int cond1Ind = corrTemplate->cond1Index();
+          const int cond2Ind = corrTemplate->cond2Index();
+
+          const GlobalCondition* cond0Condition = nullptr;
+          const GlobalCondition* cond1Condition = nullptr;
+          const GlobalCondition* cond2Condition = nullptr;
+
+          // maximum number of objects received for evaluation of l1t::Type1s condition
+          int cond0NrL1Objects = 0;
+          int cond1NrL1Objects = 0;
+          int cond2NrL1Objects = 0;
+          LogDebug("L1TGlobal") << "  cond0NrL1Objects  " << cond0NrL1Objects << "  cond1NrL1Objects  "
+                                << cond1NrL1Objects << "  cond2NrL1Objects  " << cond2NrL1Objects << std::endl;
+          if (cond0Categ == CondMuon) {
+            cond0Condition = &((corrMuon[iChip])[cond0Ind]);
+          } else {
+            LogDebug("L1TGlobal") << "No muon0 to evaluate three-body correlation condition";
+          }
+          if (cond1Categ == CondMuon) {
+            cond1Condition = &((corrMuon[iChip])[cond1Ind]);
+          } else {
+            LogDebug("L1TGlobal") << "No muon1 to evaluate three-body correlation condition";
+          }
+          if (cond2Categ == CondMuon) {
+            cond2Condition = &((corrMuon[iChip])[cond2Ind]);
+          } else {
+            LogDebug("L1TGlobal") << "No muon2 to evaluate three-body correlation condition";
+          }
+
+          CorrThreeBodyCondition* correlationThreeBodyCond =
+              new CorrThreeBodyCondition(itCond->second, cond0Condition, cond1Condition, cond2Condition, this);
+
+          correlationThreeBodyCond->setVerbosity(m_verbosity);
+          correlationThreeBodyCond->setScales(&gtScales);
+          correlationThreeBodyCond->evaluateConditionStoreResult(iBxInEvent);
+          cMapResults[itCond->first] = correlationThreeBodyCond;
+
+          if (m_verbosity && m_isDebugEnabled) {
+            std::ostringstream myCout;
+            correlationThreeBodyCond->print(myCout);
+
+            LogTrace("L1TGlobal") << myCout.str() << std::endl;
+          }
+          //              delete correlationThreeBodyCond;
+        } break;
+
         case CondCorrelationWithOverlapRemoval: {
           // get first the sub-conditions
           const CorrelationWithOverlapRemovalTemplate* corrTemplate =
@@ -853,12 +981,11 @@ void l1t::GlobalBoard::runFDL(edm::Event& iEvent,
   }
 
   // update and clear prescales at the beginning of the luminosity segment
-  if (m_firstEvLumiSegment || m_currentLumi != iEvent.luminosityBlock()) {
+  if (m_firstEvLumiSegment || (m_currentLumi != iEvent.luminosityBlock() && m_resetPSCountersEachLumiSec)) {
     m_prescaleCounterAlgoTrig.clear();
     for (int iBxInEvent = 0; iBxInEvent <= totalBxInEvent; ++iBxInEvent) {
       m_prescaleCounterAlgoTrig.push_back(prescaleFactorsAlgoTrig);
     }
-
     m_firstEvLumiSegment = false;
     m_currentLumi = iEvent.luminosityBlock();
   }
@@ -984,6 +1111,7 @@ void l1t::GlobalBoard::fillAlgRecord(int iBxInEvent,
 // clear GTL
 void l1t::GlobalBoard::reset() {
   resetMu();
+  resetMuonShower();
   resetCalo();
   resetExternal();
 
@@ -997,6 +1125,12 @@ void l1t::GlobalBoard::reset() {
 void l1t::GlobalBoard::resetMu() {
   m_candL1Mu->clear();
   m_candL1Mu->setBXRange(m_bxFirst_, m_bxLast_);
+}
+
+// clear muon shower
+void l1t::GlobalBoard::resetMuonShower() {
+  m_candL1MuShower->clear();
+  m_candL1MuShower->setBXRange(m_bxFirst_, m_bxLast_);
 }
 
 // clear calo

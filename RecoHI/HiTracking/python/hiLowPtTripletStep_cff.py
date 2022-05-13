@@ -92,25 +92,23 @@ hiLowPtTripletStepPixelTracksFilter = hiFilter.clone(
     lipMax = 0,
     ptMin = 0.4,
 )
-hiLowPtTripletStepPixelTracks = cms.EDProducer("PixelTrackProducer",
 
-    passLabel  = cms.string('Pixel primary tracks with vertex constraint'),
+import RecoPixelVertexing.PixelTrackFitting.pixelTracks_cfi as _mod
 
+hiLowPtTripletStepPixelTracks = _mod.pixelTracks.clone(
+    passLabel  = 'Pixel primary tracks with vertex constraint',
     # Ordered Hits
-    SeedingHitSets = cms.InputTag("hiLowPtTripletStepTracksHitTriplets"),
-	
+    SeedingHitSets = "hiLowPtTripletStepTracksHitTriplets",
     # Fitter
-    Fitter = cms.InputTag("pixelFitterByHelixProjections"),
-	
+    Fitter = "pixelFitterByHelixProjections",
     # Filter
-    Filter = cms.InputTag("hiLowPtTripletStepPixelTracksFilter"),
-	
+    Filter = "hiLowPtTripletStepPixelTracksFilter",
     # Cleaner
-    Cleaner = cms.string("trackCleaner")
+    Cleaner = "trackCleaner"
 )
 from Configuration.Eras.Modifier_trackingPhase1_cff import trackingPhase1
 trackingPhase1.toModify(hiLowPtTripletStepPixelTracks,
-    SeedingHitSets = cms.InputTag("hiLowPtTripletStepTracksHitTripletsCA")
+    SeedingHitSets = "hiLowPtTripletStepTracksHitTripletsCA"
 )
 
 
@@ -138,14 +136,13 @@ hiLowPtTripletStepChi2Est = TrackingTools.KalmanUpdators.Chi2MeasurementEstimato
 # TRACK BUILDING
 import RecoTracker.CkfPattern.GroupedCkfTrajectoryBuilder_cfi
 hiLowPtTripletStepTrajectoryBuilder = RecoTracker.CkfPattern.GroupedCkfTrajectoryBuilder_cfi.GroupedCkfTrajectoryBuilder.clone(
-    MeasurementTrackerName = '',
     trajectoryFilter = dict(refToPSet_ = 'hiLowPtTripletStepTrajectoryFilter'),
     maxCand = 3,
     estimator = 'hiLowPtTripletStepChi2Est',
-    maxDPhiForLooperReconstruction = cms.double(2.0),
+    maxDPhiForLooperReconstruction = 2.0,
     # 0.63 GeV is the maximum pT for a charged particle to loop within the 1.1m radius
-    # of the outermost Tracker barrel layer (with B=3.8T)  
-    maxPtForLooperReconstruction = cms.double(0.7)
+    # of the outermost Tracker barrel layer (with B=3.8T)
+    maxPtForLooperReconstruction = 0.7,
 )
 
 # MAKING OF TRACK CANDIDATES
@@ -153,10 +150,10 @@ import RecoTracker.CkfPattern.CkfTrackCandidates_cfi
 hiLowPtTripletStepTrackCandidates = RecoTracker.CkfPattern.CkfTrackCandidates_cfi.ckfTrackCandidates.clone(
     src = 'hiLowPtTripletStepSeeds',
     ### these two parameters are relevant only for the CachingSeedCleanerBySharedInput
-    numHitsForSeedCleaner = cms.int32(50),
-    onlyPixelHitsForSeedCleaner = cms.bool(True),
+    numHitsForSeedCleaner = 50,
+    onlyPixelHitsForSeedCleaner = True,
     TrajectoryBuilderPSet = dict(refToPSet_ = 'hiLowPtTripletStepTrajectoryBuilder'),
-    clustersToSkip = cms.InputTag('hiLowPtTripletStepClusters'),
+    clustersToSkip = 'hiLowPtTripletStepClusters',
     doSeedingRegionRebuilding = True,
     useHitsSplitting = True
 )

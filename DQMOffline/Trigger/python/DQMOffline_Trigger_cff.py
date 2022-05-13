@@ -71,7 +71,9 @@ from DQMOffline.Trigger.HILowLumiHLTOfflineSource_cfi import *
 from DQMOffline.Trigger.HiggsMonitoring_cff import *
 # photon jet
 from DQMOffline.Trigger.HigPhotonJetHLTOfflineSource_cfi import * # ?!?!?!
-
+#Check if perLSsaving is enabled to mask MEs vs LS
+from Configuration.ProcessModifiers.dqmPerLSsaving_cff import dqmPerLSsaving
+dqmPerLSsaving.toModify(higPhotonJetHLTOfflineSource, perLSsaving=True)
 # SMP
 from DQMOffline.Trigger.StandardModelMonitoring_cff import *
 
@@ -94,9 +96,9 @@ from DQMOffline.Trigger.HLTInclusiveVBFSource_cfi import *
 #from DQMOffline.Trigger.heavyionUCCDQM_cfi import * # OBSOLETE
 
 import DQMServices.Components.DQMEnvironment_cfi
-dqmEnvHLT = DQMServices.Components.DQMEnvironment_cfi.dqmEnv.clone()
-dqmEnvHLT.subSystemFolder = 'HLT'
-
+dqmEnvHLT = DQMServices.Components.DQMEnvironment_cfi.dqmEnv.clone(
+    subSystemFolder = 'HLT'
+)
 from DQMServices.Core.DQMEDAnalyzer import DQMEDAnalyzer
 dqmInfoHLTMon = DQMEDAnalyzer('DQMEventInfo',
     subSystemFolder = cms.untracked.string('HLT')

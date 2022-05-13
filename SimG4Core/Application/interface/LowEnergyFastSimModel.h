@@ -9,8 +9,10 @@
 #include "GFlashHitMaker.hh"
 #include "G4Region.hh"
 #include "G4Types.hh"
+#include "G4ThreeVector.hh"
 
 class TrackingAction;
+class G4ParticleDefinition;
 
 class LowEnergyFastSimModel : public G4VFastSimulationModel {
 public:
@@ -24,8 +26,11 @@ private:
   G4double fEmax;
   const G4Envelope* fRegion;
   const TrackingAction* fTrackingAction;
+  const G4ParticleDefinition* fPositron;
+  G4bool fCheck;
+  G4ThreeVector fTailPos;
   GFlashHitMaker fHitMaker;
-  LowEnergyFastSimParam param;
+  LowEnergyFastSimParam fParam;
 };
 
 #endif

@@ -64,53 +64,28 @@ PrimaryVertexProducer::PrimaryVertexProducer(const edm::ParameterSet& conf)
   }
 
   // select and configure the vertex fitters
-  if (conf.exists("vertexCollections")) {
-    std::vector<edm::ParameterSet> vertexCollections =
-        conf.getParameter<std::vector<edm::ParameterSet> >("vertexCollections");
+  std::vector<edm::ParameterSet> vertexCollections =
+      conf.getParameter<std::vector<edm::ParameterSet> >("vertexCollections");
 
-    for (std::vector<edm::ParameterSet>::const_iterator algoconf = vertexCollections.begin();
-         algoconf != vertexCollections.end();
-         algoconf++) {
-      algo algorithm;
-      std::string fitterAlgorithm = algoconf->getParameter<std::string>("algorithm");
-      if (fitterAlgorithm == "KalmanVertexFitter") {
-        algorithm.fitter = new KalmanVertexFitter();
-      } else if (fitterAlgorithm == "AdaptiveVertexFitter") {
-        algorithm.fitter = new AdaptiveVertexFitter(GeometricAnnealing(algoconf->getParameter<double>("chi2cutoff")));
-      } else {
-        throw VertexException("PrimaryVertexProducer: unknown algorithm: " + fitterAlgorithm);
-      }
-      algorithm.label = algoconf->getParameter<std::string>("label");
-      algorithm.minNdof = algoconf->getParameter<double>("minNdof");
-      algorithm.useBeamConstraint = algoconf->getParameter<bool>("useBeamConstraint");
-      algorithm.vertexSelector =
-          new VertexCompatibleWithBeam(VertexDistanceXY(), algoconf->getParameter<double>("maxDistanceToBeam"));
-      algorithms.push_back(algorithm);
-
-      produces<reco::VertexCollection>(algorithm.label);
-    }
-  } else {
-    edm::LogWarning("MisConfiguration")
-        << "this module's configuration has changed, please update to have a vertexCollections=cms.VPSet parameter.";
-
+  for (std::vector<edm::ParameterSet>::const_iterator algoconf = vertexCollections.begin();
+       algoconf != vertexCollections.end();
+       algoconf++) {
     algo algorithm;
-    std::string fitterAlgorithm = conf.getParameter<std::string>("algorithm");
+    std::string fitterAlgorithm = algoconf->getParameter<std::string>("algorithm");
     if (fitterAlgorithm == "KalmanVertexFitter") {
       algorithm.fitter = new KalmanVertexFitter();
     } else if (fitterAlgorithm == "AdaptiveVertexFitter") {
-      algorithm.fitter = new AdaptiveVertexFitter();
+      algorithm.fitter = new AdaptiveVertexFitter(GeometricAnnealing(algoconf->getParameter<double>("chi2cutoff")));
     } else {
-      throw VertexException("PrimaryVertexProducerAlgorithm: unknown algorithm: " + fitterAlgorithm);
+      throw VertexException("PrimaryVertexProducer: unknown algorithm: " + fitterAlgorithm);
     }
-    algorithm.label = "";
-    algorithm.minNdof = conf.getParameter<double>("minNdof");
-    algorithm.useBeamConstraint = conf.getParameter<bool>("useBeamConstraint");
-
-    algorithm.vertexSelector = new VertexCompatibleWithBeam(
-        VertexDistanceXY(),
-        conf.getParameter<edm::ParameterSet>("PVSelParameters").getParameter<double>("maxDistanceToBeam"));
-
+    algorithm.label = algoconf->getParameter<std::string>("label");
+    algorithm.minNdof = algoconf->getParameter<double>("minNdof");
+    algorithm.useBeamConstraint = algoconf->getParameter<bool>("useBeamConstraint");
+    algorithm.vertexSelector =
+        new VertexCompatibleWithBeam(VertexDistanceXY(), algoconf->getParameter<double>("maxDistanceToBeam"));
     algorithms.push_back(algorithm);
+
     produces<reco::VertexCollection>(algorithm.label);
   }
 
@@ -242,31 +217,20 @@ void PrimaryVertexProducer::produce(edm::Event& iEvent, const edm::EventSetup& i
       }
 
       TransientVertex v;
-      if (algorithm->useBeamConstraint && validBS && ((*iclus).size() > 1)) {
+      if (algorithm->useBeamConstraint && validBS && (iclus->size() > 1)) {
         v = algorithm->fitter->vertex(*iclus, beamSpot);
-
-        if (f4D) {
-          if (v.isValid()) {
-            auto err = v.positionError().matrix4D();
-            auto trkweightMap3d = v.weightMap();  // copy the 3 fit weights
-            err(3, 3) = vartime;
-            v = TransientVertex(v.position(), meantime, err, v.originalTracks(), v.totalChiSquared());
-            v.weightMap(trkweightMap3d);
-          }
-        }
-
-      } else if (!(algorithm->useBeamConstraint) && ((*iclus).size() > 1)) {
+      } else if (!(algorithm->useBeamConstraint) && (iclus->size() > 1)) {
         v = algorithm->fitter->vertex(*iclus);
-
-        if (f4D) {
-          if (v.isValid()) {
-            auto err = v.positionError().matrix4D();
-            err(3, 3) = vartime;
-            v = TransientVertex(v.position(), meantime, err, v.originalTracks(), v.totalChiSquared());
-          }
-        }
-
       }  // else: no fit ==> v.isValid()=False
+
+      // 4D vertices: add timing information
+      if (f4D and v.isValid()) {
+        auto err = v.positionError().matrix4D();
+        err(3, 3) = vartime;
+        auto trkWeightMap3d = v.weightMap();  // copy the 3d-fit weights
+        v = TransientVertex(v.position(), meantime, err, v.originalTracks(), v.totalChiSquared(), v.degreesOfFreedom());
+        v.weightMap(trkWeightMap3d);
+      }
 
       if (fVerbose) {
         if (v.isValid()) {

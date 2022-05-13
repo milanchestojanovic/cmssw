@@ -1,32 +1,50 @@
 #include "L1Trigger/CSCTriggerPrimitives/interface/CSCALCTCrossCLCT.h"
-#include "L1Trigger/CSCTriggerPrimitives/interface/CSCLUTReader.h"
 #include "DataFormats/CSCDigi/interface/CSCConstants.h"
 #include "DataFormats/CSCDigi/interface/CSCALCTDigi.h"
 #include "DataFormats/CSCDigi/interface/CSCCLCTDigi.h"
+#include "FWCore/MessageLogger/interface/MessageLogger.h"
+
+namespace {
+
+  // LUTs to map wiregroup onto min and max half-strip number that it crosses in ME1/1
+  // These LUTs are deliberately not implemented as eventsetup objects
+  constexpr std::array<int, 48> wg_min_hs_ME1a_ = {
+      {128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, -1, -1, -1, -1, -1, -1, -1, -1,
+       -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1, -1, -1, -1, -1, -1, -1, -1}};
+  constexpr std::array<int, 48> wg_max_hs_ME1a_ = {
+      {223, 223, 223, 223, 223, 223, 223, 223, 223, 223, 223, 223, 205, 189, 167, 150, -1, -1, -1, -1, -1, -1, -1, -1,
+       -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1, -1, -1, -1, -1, -1, -1, -1}};
+  constexpr std::array<int, 48> wg_min_hs_ME1a_ganged_ = {
+      {128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, -1, -1, -1, -1, -1, -1, -1, -1,
+       -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1, -1, -1, -1, -1, -1, -1, -1}};
+  constexpr std::array<int, 48> wg_max_hs_ME1a_ganged_ = {
+      {159, 159, 159, 159, 159, 159, 159, 159, 159, 159, 159, 159, 159, 159, 159, 150, -1, -1, -1, -1, -1, -1, -1, -1,
+       -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1, -1, -1, -1, -1, -1, -1, -1}};
+  constexpr std::array<int, 48> wg_min_hs_ME1b_ = {{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 100, 73, 47, 22, 0, 0,
+                                                    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,   0,  0,  0,  0, 0,
+                                                    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,   0,  0,  0,  0, 0}};
+  constexpr std::array<int, 48> wg_max_hs_ME1b_ = {{-1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  127, 127,
+                                                    127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127,
+                                                    127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127,
+                                                    127, 127, 127, 127, 127, 127, 127, 127, 105, 93,  78,  63}};
+};  // namespace
 
 CSCALCTCrossCLCT::CSCALCTCrossCLCT(
-    unsigned endcap, unsigned station, unsigned ring, bool isganged, const edm::ParameterSet& luts)
-    : endcap_(endcap), station_(station), ring_(ring), isganged_(isganged) {
-  wgCrossHsME1aFiles_ = luts.getParameter<std::vector<std::string>>("wgCrossHsME1aFiles");
-  wgCrossHsME1aGangedFiles_ = luts.getParameter<std::vector<std::string>>("wgCrossHsME1aGangedFiles");
-  wgCrossHsME1bFiles_ = luts.getParameter<std::vector<std::string>>("wgCrossHsME1bFiles");
-
-  wg_cross_min_hs_ME1a_ = std::make_unique<CSCLUTReader>(wgCrossHsME1aFiles_[0]);
-  wg_cross_max_hs_ME1a_ = std::make_unique<CSCLUTReader>(wgCrossHsME1aFiles_[1]);
-  wg_cross_min_hs_ME1a_ganged_ = std::make_unique<CSCLUTReader>(wgCrossHsME1aGangedFiles_[0]);
-  wg_cross_max_hs_ME1a_ganged_ = std::make_unique<CSCLUTReader>(wgCrossHsME1aGangedFiles_[1]);
-  wg_cross_min_hs_ME1b_ = std::make_unique<CSCLUTReader>(wgCrossHsME1bFiles_[0]);
-  wg_cross_max_hs_ME1b_ = std::make_unique<CSCLUTReader>(wgCrossHsME1bFiles_[1]);
+    unsigned endcap, unsigned station, unsigned ring, bool ignoreAlctCrossClct, const edm::ParameterSet& conf)
+    : endcap_(endcap), station_(station), ring_(ring) {
+  const auto& commonParams = conf.getParameter<edm::ParameterSet>("commonParam");
+  gangedME1a_ = commonParams.getParameter<bool>("gangedME1a");
+  ignoreAlctCrossClct_ = ignoreAlctCrossClct;
 }
 
-bool CSCALCTCrossCLCT::doesALCTCrossCLCT(const CSCALCTDigi& a, const CSCCLCTDigi& c, bool ignoreAlctCrossClct) const {
+bool CSCALCTCrossCLCT::doesALCTCrossCLCT(const CSCALCTDigi& a, const CSCCLCTDigi& c) const {
   // both need to valid
   if (!c.isValid() || !a.isValid()) {
     return false;
   }
 
   // when non-overlapping half-strips and wiregroups don't matter
-  if (ignoreAlctCrossClct)
+  if (ignoreAlctCrossClct_)
     return true;
 
   // overlap only needs to be considered for ME1/1
@@ -37,16 +55,20 @@ bool CSCALCTCrossCLCT::doesALCTCrossCLCT(const CSCALCTDigi& a, const CSCCLCTDigi
 }
 
 bool CSCALCTCrossCLCT::doesWiregroupCrossHalfStrip(int wiregroup, int halfstrip) const {
-  const int min_hs_ME1a = wg_cross_min_hs_ME1a_->lookup(wiregroup);
-  const int max_hs_ME1a = wg_cross_max_hs_ME1a_->lookup(wiregroup);
-  const int min_hs_ME1a_ganged = wg_cross_min_hs_ME1a_ganged_->lookup(wiregroup);
-  const int max_hs_ME1a_ganged = wg_cross_max_hs_ME1a_ganged_->lookup(wiregroup);
-  const int min_hs_ME1b = wg_cross_min_hs_ME1b_->lookup(wiregroup);
-  const int max_hs_ME1b = wg_cross_max_hs_ME1b_->lookup(wiregroup);
+  // sanity-check for invalid wiregroups
+  if (wiregroup < 0 or wiregroup >= CSCConstants::NUM_WIREGROUPS_ME11)
+    return false;
+
+  const int min_hs_ME1a = wg_min_hs_ME1a_[wiregroup];
+  const int max_hs_ME1a = wg_max_hs_ME1a_[wiregroup];
+  const int min_hs_ME1a_ganged = wg_min_hs_ME1a_ganged_[wiregroup];
+  const int max_hs_ME1a_ganged = wg_max_hs_ME1a_ganged_[wiregroup];
+  const int min_hs_ME1b = wg_min_hs_ME1b_[wiregroup];
+  const int max_hs_ME1b = wg_max_hs_ME1b_[wiregroup];
 
   // ME1/a half-strip starts at 128
   if (halfstrip > CSCConstants::MAX_HALF_STRIP_ME1B) {
-    if (!isganged_) {
+    if (!gangedME1a_) {
       // wrap around ME11 HS number for -z endcap
       if (endcap_ == 2) {
         // first subtract 128

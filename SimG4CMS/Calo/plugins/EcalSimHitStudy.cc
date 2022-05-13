@@ -3,13 +3,13 @@
 
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
-#include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/Utilities/interface/Exception.h"
+#include "FWCore/Utilities/interface/transform.h"
 
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "CommonTools/UtilAlgos/interface/TFileService.h"
@@ -63,11 +63,13 @@ private:
     EcalHit(uint16_t i = 0, double t = 0, double e = 0) : id(i), time(t), energy(e) {}
   };
   static const int ndets_ = 2;
-  std::string g4Label_, hitLab_[ndets_];
-  edm::EDGetTokenT<edm::HepMCProduct> tok_evt_;
-  edm::EDGetTokenT<edm::PCaloHitContainer> toks_calo_[2];
-  double maxEnergy_, tmax_, w0_;
-  int selX_;
+  const edm::ESGetToken<CaloGeometry, CaloGeometryRecord> tokGeom_;
+  const std::string g4Label_;
+  const std::vector<std::string> hitLab_;
+  const double maxEnergy_, tmax_, w0_;
+  const int selX_;
+  const edm::EDGetTokenT<edm::HepMCProduct> tok_evt_;
+  const std::vector<edm::EDGetTokenT<edm::PCaloHitContainer>> toks_calo_;
   const CaloGeometry* geometry_;
   TH1F *ptInc_, *etaInc_, *phiInc_, *eneInc_;
   TH1F *hit_[ndets_], *time_[ndets_], *timeAll_[ndets_];
@@ -78,21 +80,20 @@ private:
   TH2F *poszp_[ndets_], *poszn_[ndets_];
 };
 
-EcalSimHitStudy::EcalSimHitStudy(const edm::ParameterSet& ps) {
+EcalSimHitStudy::EcalSimHitStudy(const edm::ParameterSet& ps)
+    : tokGeom_(esConsumes<CaloGeometry, CaloGeometryRecord>()),
+      g4Label_(ps.getUntrackedParameter<std::string>("ModuleLabel", "g4SimHits")),
+      hitLab_(ps.getUntrackedParameter<std::vector<std::string>>("CaloCollection")),
+      maxEnergy_(ps.getUntrackedParameter<double>("MaxEnergy", 200.0)),
+      tmax_(ps.getUntrackedParameter<double>("TimeCut", 100.0)),
+      w0_(ps.getUntrackedParameter<double>("W0", 4.7)),
+      selX_(ps.getUntrackedParameter<int>("SelectX", -1)),
+      tok_evt_(consumes<edm::HepMCProduct>(
+          edm::InputTag(ps.getUntrackedParameter<std::string>("SourceLabel", "VtxSmeared")))),
+      toks_calo_{edm::vector_transform(hitLab_, [this](const std::string& name) {
+        return consumes<edm::PCaloHitContainer>(edm::InputTag{g4Label_, name});
+      })} {
   usesResource(TFileService::kSharedResource);
-
-  g4Label_ = ps.getUntrackedParameter<std::string>("ModuleLabel", "g4SimHits");
-  hitLab_[0] = ps.getUntrackedParameter<std::string>("EBCollection", "EcalHitsEB");
-  hitLab_[1] = ps.getUntrackedParameter<std::string>("EECollection", "EcalHitsEE");
-  tok_evt_ =
-      consumes<edm::HepMCProduct>(edm::InputTag(ps.getUntrackedParameter<std::string>("SourceLabel", "VtxSmeared")));
-  maxEnergy_ = ps.getUntrackedParameter<double>("MaxEnergy", 200.0);
-  tmax_ = ps.getUntrackedParameter<double>("TimeCut", 100.0);
-  w0_ = ps.getUntrackedParameter<double>("W0", 4.7);
-  selX_ = ps.getUntrackedParameter<int>("SelectX", -1);
-
-  for (int i = 0; i < ndets_; ++i)
-    toks_calo_[i] = consumes<edm::PCaloHitContainer>(edm::InputTag(g4Label_, hitLab_[i]));
 
   edm::LogVerbatim("HitStudy") << "Module Label: " << g4Label_ << "   Hits: " << hitLab_[0] << ", " << hitLab_[1]
                                << "   MaxEnergy: " << maxEnergy_ << "  Tmax: " << tmax_ << " Select " << selX_;
@@ -100,9 +101,9 @@ EcalSimHitStudy::EcalSimHitStudy(const edm::ParameterSet& ps) {
 
 void EcalSimHitStudy::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
+  std::vector<std::string> calonames;
   desc.addUntracked<std::string>("ModuleLabel", "g4SimHits");
-  desc.addUntracked<std::string>("EBCollection", "EcalHitsEB");
-  desc.addUntracked<std::string>("EECollection", "EcalHitsEE");
+  desc.addUntracked<std::vector<std::string>>("CaloCollection", calonames);
   desc.addUntracked<std::string>("SourceLabel", "VtxSmeared");
   desc.addUntracked<double>("MaxEnergy", 200.0);
   desc.addUntracked<double>("TimeCut", 100.0);
@@ -257,9 +258,7 @@ void EcalSimHitStudy::analyze(const edm::Event& e, const edm::EventSetup& iS) {
   edm::LogVerbatim("HitStudy") << "Run = " << e.id().run() << " Event = " << e.id().event();
 #endif
   // get handles to calogeometry
-  edm::ESHandle<CaloGeometry> pG;
-  iS.get<CaloGeometryRecord>().get(pG);
-  geometry_ = pG.product();
+  geometry_ = &iS.getData(tokGeom_);
 
   double eInc = 0, etaInc = 0, phiInc = 0;
   int type(-1);

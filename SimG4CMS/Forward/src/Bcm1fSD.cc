@@ -11,10 +11,9 @@
 #include "SimDataFormats/SimHitMaker/interface/TrackingSlaveSD.h"
 
 #include "SimG4Core/Notification/interface/TrackInformation.h"
+#include "SimG4CMS/Forward/interface/ForwardName.h"
 
-#include "FWCore/Framework/interface/ESTransientHandle.h"
-#include "FWCore/Framework/interface/ESHandle.h"
-#include "FWCore/Framework/interface/EventSetup.h"
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 
 #include "G4Track.hh"
@@ -31,11 +30,10 @@
 #include "CLHEP/Units/GlobalSystemOfUnits.h"
 
 Bcm1fSD::Bcm1fSD(const std::string& name,
-                 const edm::EventSetup& es,
                  const SensitiveDetectorCatalog& clg,
                  edm::ParameterSet const& p,
                  const SimTrackManager* manager)
-    : TimingSD(name, es, clg, p, manager) {
+    : TimingSD(name, clg, manager) {
   edm::ParameterSet m_TrackerSD = p.getParameter<edm::ParameterSet>("Bcm1fSD");
   energyCut = m_TrackerSD.getParameter<double>("EnergyThresholdForPersistencyInGeV") * GeV;  //default must be 0.5 (?)
   energyHistoryCut =
@@ -55,16 +53,16 @@ uint32_t Bcm1fSD::setDetUnitId(const G4Step* aStep) {
 
   //Get name and copy numbers
   if (level > 1) {
-    G4String sensorName = touch->GetVolume(0)->GetName();
-    G4String diamondName = touch->GetVolume(1)->GetName();
-    G4String detectorName = touch->GetVolume(2)->GetName();
-    G4String volumeName = touch->GetVolume(3)->GetName();
+    std::string sensorName = ForwardName::getName(touch->GetVolume(0)->GetName());
+    std::string diamondName = ForwardName::getName(touch->GetVolume(1)->GetName());
+    std::string detectorName = ForwardName::getName(touch->GetVolume(2)->GetName());
+    std::string volumeName = ForwardName::getName(touch->GetVolume(3)->GetName());
 
     if (sensorName != "BCM1FSensor") {
-      edm::LogWarning("ForwardSim") << "Bcm1fSD::setDetUnitId -w- Sensor name not BCM1FSensor ";
+      edm::LogWarning("ForwardSim") << "Bcm1fSD::setDetUnitId -w- Sensor name " << sensorName << " not BCM1FSensor ";
     }
     if (detectorName != "BCM1F") {
-      edm::LogWarning("ForwardSim") << " Bcm1fSD::setDetUnitId -w- Detector name not BCM1F ";
+      edm::LogWarning("ForwardSim") << " Bcm1fSD::setDetUnitId -w- Detector name " << detectorName << " not BCM1F ";
     }
     int sensorNo = touch->GetReplicaNumber(0);
     int diamondNo = touch->GetReplicaNumber(1);

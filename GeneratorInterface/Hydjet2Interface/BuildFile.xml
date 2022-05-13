@@ -12,8 +12,10 @@
 <use name="CommonTools/UtilAlgos"/>
 <use name="pyquen"/>
 <use name="root"/>
+<use name="hydjet2"/>
 <use name="rootmath"/>
 <use name="rootcore"/>
+<use name="hepmc"/>
 <export>
   <lib name="1"/>
 </export>

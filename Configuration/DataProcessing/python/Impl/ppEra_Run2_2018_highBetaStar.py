@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 _ppEra_Run2_2018_highBetaStar_
 
@@ -20,7 +20,6 @@ class ppEra_Run2_2018_highBetaStar(pp):
         pp.__init__(self)
         self.recoSeq=''
         self.cbSc='pp'
-        self.addEI=True
         self.eras=Run2_2018_highBetaStar
         #keep post-era parts the same as in the default 2018 era
         self.promptCustoms += [ 'Configuration/DataProcessing/RecoTLR.customisePostEra_Run2_2018' ]

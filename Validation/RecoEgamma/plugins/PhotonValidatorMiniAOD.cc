@@ -2,7 +2,6 @@
 #include "Validation/RecoEgamma/plugins/PhotonValidatorMiniAOD.h"
 //
 #include "FWCore/Framework/interface/Frameworkfwd.h"
-#include "FWCore/Framework/interface/EDAnalyzer.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/Common/interface/TriggerNames.h"
 #include "FWCore/Framework/interface/Event.h"
@@ -43,9 +42,7 @@ PhotonValidatorMiniAOD::PhotonValidatorMiniAOD(const edm::ParameterSet &iConfig)
 
 PhotonValidatorMiniAOD::~PhotonValidatorMiniAOD() {}
 
-void PhotonValidatorMiniAOD::bookHistograms(DQMStore::IBooker &iBooker,
-                                            edm::Run const &run,
-                                            edm::EventSetup const &es) {
+void PhotonValidatorMiniAOD::bookHistograms(DQMStore::IBooker &iBooker, edm::Run const &run, edm::EventSetup const &) {
   double eMin = parameters_.getParameter<double>("eMin");
   double eMax = parameters_.getParameter<double>("eMax");
   int eBin = parameters_.getParameter<int>("eBin");
@@ -193,7 +190,7 @@ void PhotonValidatorMiniAOD::bookHistograms(DQMStore::IBooker &iBooker,
   h_phoIso_[2] = iBooker.book1D(histname + "Endcap_miniAOD", "PF photonIso:  Endcap", etBin, etMin, 20.);
 }
 
-void PhotonValidatorMiniAOD::analyze(const edm::Event &iEvent, const edm::EventSetup &iSetup) {
+void PhotonValidatorMiniAOD::analyze(const edm::Event &iEvent, const edm::EventSetup &) {
   // ********************************************************************************
   using namespace edm;
 

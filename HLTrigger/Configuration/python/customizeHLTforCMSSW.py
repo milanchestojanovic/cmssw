@@ -1,6 +1,6 @@
 import FWCore.ParameterSet.Config as cms
 
-# helper fuctions
+# helper functions
 from HLTrigger.Configuration.common import *
 
 # add one customisation function per PR
@@ -16,7 +16,6 @@ from HLTrigger.Configuration.common import *
 #                 if not hasattr(pset,'minGoodStripCharge'):
 #                     pset.minGoodStripCharge = cms.PSet(refToPSet_ = cms.string('HLTSiStripClusterChargeCutNone'))
 #     return process
-
 
 def customiseHCALFor2018Input(process):
     """Customise the HLT to run on Run 2 data/MC using the old readout for the HCAL barel"""
@@ -64,7 +63,6 @@ def customiseHCALFor2018Input(process):
 
     # done
     return process
-
 
 def customiseFor2017DtUnpacking(process):
     """Adapt the HLT to run the legacy DT unpacking
@@ -119,21 +117,97 @@ def customisePixelGainForRun2Input(process):
         producer.VCaltoElectronOffset    =  -60
         producer.VCaltoElectronOffset_L1 = -670
 
+    for producer in producers_by_type(process, "SiPixelRawToClusterCUDA"):
+        producer.isRun2 = True
+
     return process
 
+def customisePixelL1ClusterThresholdForRun2Input(process):
+    # revert the pixel Layer 1 cluster threshold to be compatible with Run2:
+    for producer in producers_by_type(process, "SiPixelClusterProducer"):
+        if hasattr(producer,"ClusterThreshold_L1"):
+            producer.ClusterThreshold_L1 = 2000
+    for producer in producers_by_type(process, "SiPixelRawToClusterCUDA"):
+        if hasattr(producer,"clusterThreshold_layer1"):
+            producer.clusterThreshold_layer1 = 2000
+
+    return process
+
+def customiseCTPPSFor2018Input(process):
+    for prod in producers_by_type(process, 'CTPPSGeometryESModule'):
+        prod.isRun2 = True
+    for prod in producers_by_type(process, 'CTPPSPixelRawToDigi'):
+        prod.isRun3 = False
+
+    return process
+
+def customiseEGammaRecoFor2018Input(process):
+    for prod in producers_by_type(process, 'PFECALSuperClusterProducer'):
+        if hasattr(prod, 'regressionConfig'):
+            prod.regressionConfig.regTrainedWithPS = cms.bool(False)
+
+    return process
 
 def customiseFor2018Input(process):
     """Customise the HLT to run on Run 2 data/MC"""
     process = customisePixelGainForRun2Input(process)
+    process = customisePixelL1ClusterThresholdForRun2Input(process)
     process = customiseHCALFor2018Input(process)
+    process = customiseCTPPSFor2018Input(process)
+    process = customiseEGammaRecoFor2018Input(process)
+
+    return process
+
+
+def customiseFor37231(process):
+    """ Customisation to fix the typo of Reccord in PR 37231 (https://github.com/cms-sw/cmssw/pull/37231) """
+
+    for prod in producers_by_type(process, 'DeDxEstimatorProducer'):
+        if hasattr(prod, 'Reccord'):
+            prod.Record = prod.Reccord
+            delattr(prod, 'Reccord')
+
+    return process
+
+def customiseFor37756(process):
+    """https://github.com/cms-sw/cmssw/pull/37756
+    Removal of use_preshower parameter from PFECALSuperClusterProducer
+    """
+    for prod in producers_by_type(process, 'PFECALSuperClusterProducer'):
+        if hasattr(prod, 'use_preshower'):
+            delattr(prod, 'use_preshower')
+
+    return process
+
+def customiseFor37646(process):
+    """ Customisation to remove a renamed parameter in HLTScoutingPFProducer
+     from PR 37646 (https://github.com/cms-sw/cmssw/pull/37646)
+    """
+    for prod in producers_by_type(process, 'HLTScoutingPFProducer'):
+        if hasattr(prod, 'doTrackRelVars'):
+            delattr(prod, 'doTrackRelVars')
+            
+    return process
+
+  
+def customiseForOffline(process):
+#   https://its.cern.ch/jira/browse/CMSHLT-2271
+    for prod in producers_by_type(process, 'BeamSpotOnlineProducer'):
+        prod.useTransientRecord = False
 
     return process
 
 
 # CMSSW version specific customizations
 def customizeHLTforCMSSW(process, menuType="GRun"):
-    
+
+    process = customiseForOffline(process)
+
     # add call to action function in proper order: newest last!
     # process = customiseFor12718(process)
 
+    process = customiseFor37231(process)
+    process = customiseFor37646(process)
+    process = customiseFor37756(process)
+    
     return process

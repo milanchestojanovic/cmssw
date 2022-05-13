@@ -48,7 +48,8 @@ public:
     NUM_WIREGROUPS_ME42 = 64,
     // this number should really be 112, but has always been 119 since the
     // CSC trigger was developed in 2006. Probably it would not hurt to change it to 112
-    MAX_NUM_WIREGROUPS = 119
+    MAX_NUM_WIREGROUPS = 119,
+    INVALID_WIREGROUP = 65535
   };
 
   // distrips, strips, half-strips
@@ -94,6 +95,8 @@ public:
     NUM_HALF_STRIPS_ME32 = NUM_CFEBS_ME32 * NUM_HALF_STRIPS_PER_CFEB,  // 160
     NUM_HALF_STRIPS_ME41 = NUM_CFEBS_ME41 * NUM_HALF_STRIPS_PER_CFEB,  // 160
     NUM_HALF_STRIPS_ME42 = NUM_CFEBS_ME42 * NUM_HALF_STRIPS_PER_CFEB,  // 160
+    // useful for the comparator code algorithm
+    INVALID_HALF_STRIP = 65535
   };
 
   // CSCs have 6 layers. The key (reference) layer is the third layer
@@ -103,7 +106,13 @@ public:
   enum Pattern_Info {
     NUM_ALCT_PATTERNS = 3,
     ALCT_PATTERN_WIDTH = 5,
+    ALCT_ACCELERATOR_PATTERN = 0,
+    ALCT_COLLISIONA_PATTERN = 1,
+    ALCT_COLLISIONB_PATTERN = 2,
+    // Run-1 and Run-2 CSC trigger patterns
     NUM_CLCT_PATTERNS = 11,
+    // Run-3 CSC trigger patterns
+    NUM_CLCT_PATTERNS_RUN3 = 5,
     CLCT_PATTERN_WIDTH = 11,
     // Max number of wires participating in a pattern
     MAX_WIRES_IN_PATTERN = 14,
@@ -118,7 +127,7 @@ public:
     MAX_ALCT_TBINS = 16,
     MAX_LCT_TBINS = 16,
     // Maximum allowed matching window size
-    MAX_MATCH_WINDOW_SIZE = 15,
+    MAX_MATCH_WINDOW_SIZE = 7,
     // Each CLCT processor can send up to 2 CLCTs to TMB per BX
     MAX_CLCTS_PER_PROCESSOR = 2,
     MAX_CLCTS_READOUT = 2,

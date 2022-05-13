@@ -32,7 +32,8 @@ public:
     int momentum;
   };
   explicit HcalForwardLibWriter(const edm::ParameterSet&);
-  ~HcalForwardLibWriter() override;
+  ~HcalForwardLibWriter() override = default;
+  static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
 private:
   void beginJob() override;
@@ -41,13 +42,18 @@ private:
   int readUserData();
   int nbins;
   int nshowers;
+  int bsize;
+  int splitlevel;
+  int compressionAlgo;
+  int compressionLevel;
 
   TFile* theFile;
   TTree* theTree;
   TFile* LibFile;
   TTree* LibTree;
+  TBranch* emBranch;
+  TBranch* hadBranch;
 
-  edm::Service<TFileService> fs;
   std::string theDataFile;
   std::vector<FileHandle> theFileHandle;
 

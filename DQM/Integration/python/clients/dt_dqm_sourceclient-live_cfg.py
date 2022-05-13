@@ -2,7 +2,8 @@ from __future__ import print_function
 import FWCore.ParameterSet.Config as cms
 import sys
 
-process = cms.Process("DTDQM")
+from Configuration.Eras.Era_Run3_cff import Run3
+process = cms.Process("DTDQM", Run3)
 
 unitTest = False
 if 'unitTest=True' in sys.argv:
@@ -65,10 +66,10 @@ process.dtDQMPathPhys = cms.Path(process.unpackers + process.dqmmodules + proces
 
 #process.dtDQMPathCalib = cms.Path(process.unpackers + process.dqmmodules + process.calibrationEventsFilter * process.dtDQMCalib)
 
-process.twinMuxStage2Digis.DTTM7_FED_Source = cms.InputTag("rawDataCollector")
-process.dtunpacker.inputLabel = cms.InputTag("rawDataCollector")
-process.gtDigis.DaqGtInputTag = cms.InputTag("rawDataCollector")
-process.scalersRawToDigi.scalersInputTag = cms.InputTag("rawDataCollector")
+process.twinMuxStage2Digis.DTTM7_FED_Source = "rawDataCollector"
+process.dtunpacker.inputLabel = "rawDataCollector"
+process.gtDigis.DaqGtInputTag = "rawDataCollector"
+process.scalersRawToDigi.scalersInputTag = "rawDataCollector"
 
 print("Running with run type = ", process.runType.getRunType())
 
@@ -93,15 +94,16 @@ if (process.runType.getRunType() == process.runType.cosmic_run):
 #----------------------------
 
 if (process.runType.getRunType() == process.runType.hi_run):
-    process.twinMuxStage2Digis.DTTM7_FED_Source = cms.InputTag("rawDataRepacker")
-    process.dtunpacker.inputLabel = cms.InputTag("rawDataRepacker")
-    process.gtDigis.DaqGtInputTag = cms.InputTag("rawDataRepacker")
-    process.scalersRawToDigi.scalersInputTag = cms.InputTag("rawDataRepacker")
+    process.twinMuxStage2Digis.DTTM7_FED_Source = "rawDataRepacker"
+    process.dtunpacker.inputLabel = "rawDataRepacker"
+    process.gtDigis.DaqGtInputTag = "rawDataRepacker"
+    process.scalersRawToDigi.scalersInputTag = "rawDataRepacker"
     
-    process.dtDigiMonitor.ResetCycle = cms.untracked.int32(9999)
+    process.dtDigiMonitor.ResetCycle = 9999
 
 
 
 ### process customizations included here
 from DQM.Integration.config.online_customizations_cfi import *
+print("Final Source settings:", process.source)
 process = customise(process)

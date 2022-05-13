@@ -23,27 +23,19 @@ hiConformalPixelTracksHitTriplets = _pixelTripletHLTEDProducer.clone(
     produceSeedingHitSets = True,
 )
 
+import RecoPixelVertexing.PixelTrackFitting.pixelTracks_cfi as _mod
 # Pixel tracks
-hiConformalPixelTracks = cms.EDProducer("PixelTrackProducer",
-                                        
-                                        #passLabel  = cms.string('Pixel triplet low-pt tracks with vertex constraint'),
-                                        
-                                        # Ordered Hits
-                                        SeedingHitSets = cms.InputTag("hiConformalPixelTracksHitTriplets"),
-                                        
-                                        # Fitter
-                                        Fitter = cms.InputTag('pixelFitterByConformalMappingAndLine'),
-                                        
-                                        # Filter
-                                        Filter = cms.InputTag("hiConformalPixelFilter"),
-                                        
-                                        # Cleaner
-                                        Cleaner = cms.string("trackCleaner")
-                                        )
-
-
-
-
+hiConformalPixelTracks = _mod.pixelTracks.clone(
+    #passLabel  = 'Pixel triplet low-pt tracks with vertex constraint',
+    # Ordered Hits
+    SeedingHitSets = "hiConformalPixelTracksHitTriplets",
+    # Fitter
+    Fitter = 'pixelFitterByConformalMappingAndLine',
+    # Filter
+    Filter = "hiConformalPixelFilter",   
+    # Cleaner
+    Cleaner = "trackCleaner"
+)
 
 ###Pixel Tracking -  PhaseI geometry
 
@@ -110,20 +102,22 @@ hiConformalPixelTracksPhase1HitQuadrupletsCA = lowPtQuadStepHitQuadruplets.clone
 #Filter
 hiConformalPixelTracksPhase1Filter = hiConformalPixelFilter.clone(
     VertexCollection = "offlinePrimaryVertices",
-    chi2   = 999.9,
+    chi2   = 30.0,
     lipMax = 999.0,
-    nSigmaLipMaxTolerance = 999.9,
-    nSigmaTipMaxTolerance = 999.0,
+    nSigmaLipMaxTolerance = 3.0,
+    nSigmaTipMaxTolerance = 3.0,
     ptMax  = 999999,
     ptMin  = 0.30,
     tipMax = 999.0
 )
 
+from RecoPixelVertexing.PixelTrackFitting.pixelNtupletsFitter_cfi import pixelNtupletsFitter
+
 from Configuration.Eras.Modifier_phase1Pixel_cff import phase1Pixel
 phase1Pixel.toModify(hiConformalPixelTracks,
     Cleaner = 'pixelTrackCleanerBySharedHits',
     Filter  = "hiConformalPixelTracksPhase1Filter",
-    Fitter  = "pixelFitterByConformalMappingAndLine",
+    Fitter  = "pixelNtupletsFitter",
     SeedingHitSets = "hiConformalPixelTracksPhase1HitQuadrupletsCA",
 )
 
@@ -141,7 +135,7 @@ hiConformalPixelTracksTaskPhase1 = cms.Task(
     hiConformalPixelTracksPhase1SeedLayers ,
     hiConformalPixelTracksPhase1HitDoubletsCA ,
     hiConformalPixelTracksPhase1HitQuadrupletsCA ,
-    pixelFitterByConformalMappingAndLine ,
+    pixelNtupletsFitter ,
     hiConformalPixelTracksPhase1Filter ,
     hiConformalPixelTracks
 )

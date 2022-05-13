@@ -18,11 +18,9 @@
 #include <memory>
 #include <fstream>
 #include "FWCore/Framework/interface/Frameworkfwd.h"
-#include "FWCore/Framework/interface/EDAnalyzer.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
-#include "FWCore/ServiceRegistry/interface/Service.h"
 #include "DQMServices/Core/interface/DQMStore.h"
 
 #include "DataFormats/Common/interface/TriggerResults.h"
@@ -131,6 +129,7 @@ private:
 
   edm::InputTag inputJetIDValueMap;
   edm::EDGetTokenT<edm::ValueMap<reco::JetID>> jetID_ValueMapToken_;
+  edm::ESGetToken<L1GtTriggerMenu, L1GtTriggerMenuRcd> l1gtTrigMenuToken_;
 
   //Cleaning parameters
   edm::ParameterSet cleaningParameters_;

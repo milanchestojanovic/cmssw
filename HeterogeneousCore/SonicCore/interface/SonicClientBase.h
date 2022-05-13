@@ -9,7 +9,6 @@
 #include "HeterogeneousCore/SonicCore/interface/SonicDispatcherPseudoAsync.h"
 
 #include <string>
-#include <chrono>
 #include <exception>
 #include <memory>
 #include <optional>
@@ -53,13 +52,13 @@ protected:
 
   //members
   SonicMode mode_;
+  bool verbose_;
   std::unique_ptr<SonicDispatcher> dispatcher_;
   unsigned allowedTries_, tries_;
   std::optional<edm::WaitingTaskWithArenaHolder> holder_;
 
   //for logging/debugging
   std::string debugName_, clientName_, fullDebugName_;
-  std::chrono::time_point<std::chrono::high_resolution_clock> t0_;
 
   friend class SonicDispatcher;
   friend class SonicDispatcherPseudoAsync;

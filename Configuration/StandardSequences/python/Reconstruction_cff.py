@@ -90,7 +90,7 @@ ctpps.toReplaceWith(localreco_HcalNZSTask, _ctpps_localreco_HcalNZSTask)
 ###########################################
 _fastSim_localrecoTask = localrecoTask.copyAndExclude([
     castorreco,
-    totemRPLocalReconstructionTask,totemTimingLocalReconstructionTask,ctppsDiamondLocalReconstructionTask,
+    totemRPLocalReconstructionTask,totemTimingLocalReconstructionTask,diamondSampicLocalReconstructionTask,ctppsDiamondLocalReconstructionTask,
     ctppsLocalTrackLiteProducer,ctppsPixelLocalReconstructionTask,ctppsProtons,
     trackerlocalrecoTask
 ])
@@ -206,7 +206,7 @@ reconstruction         = cms.Sequence(reconstructionTask)
 #logErrorHarvester should only wait for items produced in the reconstruction sequence
 _modulesInReconstruction = list()
 reconstructionTask.visit(cms.ModuleNamesFromGlobalsVisitor(globals(),_modulesInReconstruction))
-logErrorHarvester.includeModules = cms.untracked.vstring(set(_modulesInReconstruction))
+logErrorHarvester.includeModules = cms.untracked.vstring(sorted(set(_modulesInReconstruction)))
 
 reconstruction_trackingOnlyTask = cms.Task(localrecoTask,globalreco_trackingTask)
 #calo parts removed as long as tracking is not running jetCore in phase2
@@ -230,6 +230,9 @@ reconstruction_ecalOnlyTask = cms.Task(
     particleFlowSuperClusterECALOnly
 )
 reconstruction_ecalOnly = cms.Sequence(reconstruction_ecalOnlyTask)
+
+from Configuration.Eras.Modifier_phase2_ecal_devel_cff import phase2_ecal_devel
+phase2_ecal_devel.toReplaceWith(reconstruction_ecalOnlyTask, reconstruction_ecalOnlyTask.copyAndExclude([pfClusteringPSTask, pfClusteringECALTask, particleFlowSuperClusterECALOnly]))
 
 reconstruction_hcalOnlyTask = cms.Task(
     bunchSpacingProducer,

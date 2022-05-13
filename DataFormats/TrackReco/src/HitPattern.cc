@@ -32,6 +32,19 @@ HitPattern::HitPattern(const HitPattern& other)
   memcpy(this->hitPattern, other.hitPattern, sizeof(uint16_t) * HitPattern::ARRAY_LENGTH);
 }
 
+HitPattern::HitPattern(const Run3ScoutingHitPatternPOD& other)
+    : hitCount(other.hitCount),
+      beginTrackHits(other.beginTrackHits),
+      endTrackHits(other.endTrackHits),
+      beginInner(other.beginInner),
+      endInner(other.endInner),
+      beginOuter(other.beginOuter),
+      endOuter(other.endOuter) {
+  const unsigned short max_vector_length =
+      (other.hitPattern.size() > HitPattern::ARRAY_LENGTH) ? HitPattern::ARRAY_LENGTH : other.hitPattern.size();
+  std::copy(other.hitPattern.begin(), other.hitPattern.begin() + max_vector_length, this->hitPattern);
+}
+
 HitPattern::~HitPattern() { ; }
 
 HitPattern& HitPattern::operator=(const HitPattern& other) {
@@ -99,8 +112,17 @@ namespace {
         } break;
         case MuonSubdetId::GEM: {
           GEMDetId gemid(id.rawId());
-          layer = ((gemid.station() - 1) << 2);
-          layer |= abs(gemid.layer() - 1);
+          {
+            uint16_t st = gemid.station();
+            uint16_t la = gemid.layer();
+            if (st == 0) {
+              layer |= 0b1000;
+              layer |= (la - 1);
+            } else {
+              layer |= (st - 1) << 2;
+              layer |= (la - 1);
+            }
+          }
         } break;
         case MuonSubdetId::ME0: {
           ME0DetId me0id(id.rawId());
@@ -204,8 +226,9 @@ bool HitPattern::appendHit(const TrackingRecHit& hit, const TrackerTopology& tto
 
 bool HitPattern::appendHit(const DetId& id, TrackingRecHit::Type hitType, const TrackerTopology& ttopo) {
   //if HitPattern is full, journey ends no matter what.
-  if
-    UNLIKELY((hitCount == HitPattern::MaxHits)) { return false; }
+  if UNLIKELY ((hitCount == HitPattern::MaxHits)) {
+    return false;
+  }
 
   uint16_t pattern = HitPattern::encode(id, hitType, ttopo);
 
@@ -214,8 +237,9 @@ bool HitPattern::appendHit(const DetId& id, TrackingRecHit::Type hitType, const 
 
 bool HitPattern::appendHit(const uint16_t pattern, TrackingRecHit::Type hitType) {
   //if HitPattern is full, journey ends no matter what.
-  if
-    UNLIKELY((hitCount == HitPattern::MaxHits)) { return false; }
+  if UNLIKELY ((hitCount == HitPattern::MaxHits)) {
+    return false;
+  }
 
   switch (hitType) {
     case TrackingRecHit::valid:
@@ -226,47 +250,41 @@ bool HitPattern::appendHit(const uint16_t pattern, TrackingRecHit::Type hitType)
       // 0 != beginT || 0 != endT => we already have hits of T type
       // so we already have hits of T in the vector and we don't want to
       // mess them with T' hits.
-      if
-        UNLIKELY(((hitCount != endTrackHits) && (0 != beginTrackHits || 0 != endTrackHits))) {
-          cms::Exception("HitPattern")
-              << "TRACK_HITS"
-              << " were stored on this object before hits of some other category were inserted "
-              << "but hits of the same category should be inserted in a row. "
-              << "Please rework the code so it inserts all "
-              << "TRACK_HITS"
-              << " in a row.";
-          return false;
-        }
+      if UNLIKELY (((hitCount != endTrackHits) && (0 != beginTrackHits || 0 != endTrackHits))) {
+        cms::Exception("HitPattern") << "TRACK_HITS"
+                                     << " were stored on this object before hits of some other category were inserted "
+                                     << "but hits of the same category should be inserted in a row. "
+                                     << "Please rework the code so it inserts all "
+                                     << "TRACK_HITS"
+                                     << " in a row.";
+        return false;
+      }
       return insertTrackHit(pattern);
       break;
     case TrackingRecHit::inactive_inner:
     case TrackingRecHit::missing_inner:
-      if
-        UNLIKELY(((hitCount != endInner) && (0 != beginInner || 0 != endInner))) {
-          cms::Exception("HitPattern")
-              << "MISSING_INNER_HITS"
-              << " were stored on this object before hits of some other category were inserted "
-              << "but hits of the same category should be inserted in a row. "
-              << "Please rework the code so it inserts all "
-              << "MISSING_INNER_HITS"
-              << " in a row.";
-          return false;
-        }
+      if UNLIKELY (((hitCount != endInner) && (0 != beginInner || 0 != endInner))) {
+        cms::Exception("HitPattern") << "MISSING_INNER_HITS"
+                                     << " were stored on this object before hits of some other category were inserted "
+                                     << "but hits of the same category should be inserted in a row. "
+                                     << "Please rework the code so it inserts all "
+                                     << "MISSING_INNER_HITS"
+                                     << " in a row.";
+        return false;
+      }
       return insertExpectedInnerHit(pattern);
       break;
     case TrackingRecHit::inactive_outer:
     case TrackingRecHit::missing_outer:
-      if
-        UNLIKELY(((hitCount != endOuter) && (0 != beginOuter || 0 != endOuter))) {
-          cms::Exception("HitPattern")
-              << "MISSING_OUTER_HITS"
-              << " were stored on this object before hits of some other category were inserted "
-              << "but hits of the same category should be inserted in a row. "
-              << "Please rework the code so it inserts all "
-              << "MISSING_OUTER_HITS"
-              << " in a row.";
-          return false;
-        }
+      if UNLIKELY (((hitCount != endOuter) && (0 != beginOuter || 0 != endOuter))) {
+        cms::Exception("HitPattern") << "MISSING_OUTER_HITS"
+                                     << " were stored on this object before hits of some other category were inserted "
+                                     << "but hits of the same category should be inserted in a row. "
+                                     << "Please rework the code so it inserts all "
+                                     << "MISSING_OUTER_HITS"
+                                     << " in a row.";
+        return false;
+      }
       return insertExpectedOuterHit(pattern);
       break;
   }
@@ -280,23 +298,24 @@ bool HitPattern::appendTrackerHit(uint16_t subdet, uint16_t layer, uint16_t ster
 
 bool HitPattern::appendMuonHit(const DetId& id, TrackingRecHit::Type hitType) {
   //if HitPattern is full, journey ends no matter what.
-  if
-    UNLIKELY((hitCount == HitPattern::MaxHits)) { return false; }
+  if UNLIKELY ((hitCount == HitPattern::MaxHits)) {
+    return false;
+  }
 
-  if
-    UNLIKELY(id.det() != DetId::Muon) {
-      throw cms::Exception("HitPattern")
-          << "Got DetId from det " << id.det()
-          << " that is not Muon in appendMuonHit(), which should only be used for muon hits in the HitPattern IO rule";
-    }
+  if UNLIKELY (id.det() != DetId::Muon) {
+    throw cms::Exception("HitPattern")
+        << "Got DetId from det " << id.det()
+        << " that is not Muon in appendMuonHit(), which should only be used for muon hits in the HitPattern IO rule";
+  }
 
   uint16_t subdet = id.subdetId();
   return appendHit(encode(MUON_HIT, subdet, encodeMuonLayer(id), 0, hitType), hitType);
 }
 
 uint16_t HitPattern::getHitPatternByAbsoluteIndex(int position) const {
-  if
-    UNLIKELY((position < 0 || position >= hitCount)) { return HitPattern::EMPTY_PATTERN; }
+  if UNLIKELY ((position < 0 || position >= hitCount)) {
+    return HitPattern::EMPTY_PATTERN;
+  }
   /*
     Note: you are not taking a consecutive sequence of HIT_LENGTH bits starting from position * HIT_LENGTH
      as the bit order in the words are reversed. 
@@ -328,6 +347,8 @@ uint16_t HitPattern::getHitPatternByAbsoluteIndex(int position) const {
   } else {
     uint8_t firstWordBits = HIT_LENGTH - secondWordBits;
     uint16_t firstWordBlock = hitPattern[secondWord - 1] >> (16 - firstWordBits);
+    if (secondWordBits == 0)
+      return firstWordBlock;
     uint16_t secondWordBlock = hitPattern[secondWord] & ((1 << secondWordBits) - 1);
     uint16_t myResult = firstWordBlock + (secondWordBlock << firstWordBits);
     return myResult;
@@ -495,8 +516,8 @@ int HitPattern::pixelLayersWithMeasurement() const {
   std::pair<uint8_t, uint8_t> range = getCategoryIndexRange(category);
   for (int i = range.first; i < range.second; ++i) {
     auto pattern = getHitPatternByAbsoluteIndex(i);
-    if
-      UNLIKELY(!trackerHitFilter(pattern)) continue;
+    if UNLIKELY (!trackerHitFilter(pattern))
+      continue;
     if (pattern > minStripWord)
       continue;
     uint16_t hitType = (pattern >> HitTypeOffset) & HitTypeMask;
@@ -516,8 +537,8 @@ int HitPattern::trackerLayersWithMeasurement() const {
   std::pair<uint8_t, uint8_t> range = getCategoryIndexRange(category);
   for (int i = range.first; i < range.second; ++i) {
     auto pattern = getHitPatternByAbsoluteIndex(i);
-    if
-      UNLIKELY(!trackerHitFilter(pattern)) continue;
+    if UNLIKELY (!trackerHitFilter(pattern))
+      continue;
     uint16_t hitType = (pattern >> HitTypeOffset) & HitTypeMask;
     if (hitType != HIT_TYPE::VALID)
       continue;
@@ -535,8 +556,8 @@ int HitPattern::trackerLayersWithoutMeasurement(HitCategory category) const {
   std::pair<uint8_t, uint8_t> range = getCategoryIndexRange(category);
   for (int i = range.first; i < range.second; ++i) {
     auto pattern = getHitPatternByAbsoluteIndex(i);
-    if
-      UNLIKELY(!trackerHitFilter(pattern)) continue;
+    if UNLIKELY (!trackerHitFilter(pattern))
+      continue;
     uint16_t hitType = (pattern >> HitTypeOffset) & HitTypeMask;
     pattern = (pattern - minTrackerWord) >> LayerOffset;
     // assert(pattern<128);
@@ -821,7 +842,8 @@ void HitPattern::printHitPattern(HitCategory category, int position, std::ostrea
     } else if (muonRPCHitFilter(pattern)) {
       stream << "\trpc " << (getRPCregion(pattern) ? "endcaps" : "barrel") << ", layer " << getRPCLayer(pattern);
     } else if (muonGEMHitFilter(pattern)) {
-      stream << "\tgem " << (getGEMLayer(pattern) ? "layer1" : "layer2") << ", station " << getGEMStation(pattern);
+      stream << "\tgem "
+             << " station " << getGEMStation(pattern) << ", layer" << getGEMLayer(pattern);
     } else if (muonME0HitFilter(pattern)) {
       stream << "\tme0 ";
     } else {
@@ -875,16 +897,16 @@ uint16_t HitPattern::isStereo(DetId i, const TrackerTopology& ttopo) {
 }
 
 int HitPattern::muonStations(int subdet, int hitType) const {
-  int stations[4] = {0, 0, 0, 0};
+  int stations[5] = {0, 0, 0, 0, 0};
   for (int i = beginTrackHits; i < endTrackHits; ++i) {
     uint16_t pattern = getHitPatternByAbsoluteIndex(i);
     if (muonHitFilter(pattern) && (subdet == 0 || int(getSubStructure(pattern)) == subdet) &&
         (hitType == -1 || int(getHitType(pattern)) == hitType)) {
-      stations[getMuonStation(pattern) - 1] = 1;
+      stations[getMuonStation(pattern)] = 1;
     }
   }
 
-  return stations[0] + stations[1] + stations[2] + stations[3];
+  return stations[0] + stations[1] + stations[2] + stations[3] + stations[4];
 }
 
 int HitPattern::innermostMuonStationWithHits(int hitType) const {
@@ -969,12 +991,11 @@ bool HitPattern::insertTrackHit(const uint16_t pattern) {
   // empty index.
   // unlikely, because it will happen only when inserting
   // the first hit of this type
-  if
-    UNLIKELY((0 == beginTrackHits && 0 == endTrackHits)) {
-      beginTrackHits = hitCount;
-      // before the first hit of this type is inserted, there are no hits
-      endTrackHits = beginTrackHits;
-    }
+  if UNLIKELY ((0 == beginTrackHits && 0 == endTrackHits)) {
+    beginTrackHits = hitCount;
+    // before the first hit of this type is inserted, there are no hits
+    endTrackHits = beginTrackHits;
+  }
 
   insertHit(pattern);
   endTrackHits++;
@@ -983,11 +1004,10 @@ bool HitPattern::insertTrackHit(const uint16_t pattern) {
 }
 
 bool HitPattern::insertExpectedInnerHit(const uint16_t pattern) {
-  if
-    UNLIKELY((0 == beginInner && 0 == endInner)) {
-      beginInner = hitCount;
-      endInner = beginInner;
-    }
+  if UNLIKELY ((0 == beginInner && 0 == endInner)) {
+    beginInner = hitCount;
+    endInner = beginInner;
+  }
 
   insertHit(pattern);
   endInner++;
@@ -996,14 +1016,26 @@ bool HitPattern::insertExpectedInnerHit(const uint16_t pattern) {
 }
 
 bool HitPattern::insertExpectedOuterHit(const uint16_t pattern) {
-  if
-    UNLIKELY((0 == beginOuter && 0 == endOuter)) {
-      beginOuter = hitCount;
-      endOuter = beginOuter;
-    }
+  if UNLIKELY ((0 == beginOuter && 0 == endOuter)) {
+    beginOuter = hitCount;
+    endOuter = beginOuter;
+  }
 
   insertHit(pattern);
   endOuter++;
 
   return true;
+}
+
+Run3ScoutingHitPatternPOD HitPattern::run3ScoutingHitPatternPOD() const {
+  Run3ScoutingHitPatternPOD result{
+      .hitCount = hitCount,
+      .beginTrackHits = beginTrackHits,
+      .endTrackHits = endTrackHits,
+      .beginInner = beginInner,
+      .endInner = endInner,
+      .beginOuter = beginOuter,
+      .endOuter = endOuter,
+      .hitPattern = std::vector<uint16_t>(hitPattern, hitPattern + HitPattern::ARRAY_LENGTH)};
+  return result;
 }

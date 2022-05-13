@@ -4,7 +4,6 @@ from RecoTauTag.RecoTau.TauDiscriminatorTools import noPrediscriminants
 from RecoTauTag.RecoTau.PATTauDiscriminationByMVAIsolationRun2_cff import patDiscriminationByIsolationMVArun2v1raw, patDiscriminationByIsolationMVArun2v1
 import os
 import re
-import six
 
 class TauIDEmbedder(object):
     """class to rerun the tau seq and acces trainings from the database"""
@@ -1008,17 +1007,27 @@ class TauIDEmbedder(object):
                 getattr(self.process, self.updatedTauName).tauIDSources,
                 tauIDSources)
             getattr(self.process, self.updatedTauName).tauIDSources = tauIDSources
-        setattr(self.process,"rerunMvaIsolationTask"+self.postfix,_rerunMvaIsolationTask)
-        setattr(self.process,"rerunMvaIsolationSequence"+self.postfix,_rerunMvaIsolationSequence)
+        if not hasattr(self.process,"rerunMvaIsolationTask"+self.postfix):
+            setattr(self.process,"rerunMvaIsolationTask"+self.postfix,_rerunMvaIsolationTask)
+        else:
+            _updatedRerunMvaIsolationTask = getattr(self.process,"rerunMvaIsolationTask"+self.postfix)
+            _updatedRerunMvaIsolationTask.add(_rerunMvaIsolationTask)
+            setattr(self.process,"rerunMvaIsolationTask"+self.postfix,_updatedRerunMvaIsolationTask)
+        if not hasattr(self.process,"rerunMvaIsolationSequence"+self.postfix):
+            setattr(self.process,"rerunMvaIsolationSequence"+self.postfix,_rerunMvaIsolationSequence)
+        else:
+            _updatedRerunMvaIsolationSequence = getattr(self.process,"rerunMvaIsolationSequence"+self.postfix)
+            _updatedRerunMvaIsolationSequence += _rerunMvaIsolationSequence
+            setattr(self.process,"rerunMvaIsolationSequence"+self.postfix,_updatedRerunMvaIsolationSequence)
 
 
     def processDeepProducer(self, producer_name, tauIDSources, workingPoints_):
-        for target,points in six.iteritems(workingPoints_):
+        for target,points in workingPoints_.items():
             setattr(tauIDSources, 'by{}VS{}raw'.format(producer_name[0].upper()+producer_name[1:], target),
                         cms.PSet(inputTag = cms.InputTag(producer_name+self.postfix, 'VS{}'.format(target)), workingPointIndex = cms.int32(-1)))
             
             cut_expressions = []
-            for index, (point,cut) in enumerate(six.iteritems(points)):
+            for index, (point,cut) in enumerate(points.items()):
                 cut_expressions.append(str(cut))
 
                 setattr(tauIDSources, 'by{}{}VS{}'.format(point, producer_name[0].upper()+producer_name[1:], target),

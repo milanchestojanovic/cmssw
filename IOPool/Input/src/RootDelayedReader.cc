@@ -7,7 +7,7 @@
 #include "DataFormats/Common/interface/RefCoreStreamer.h"
 
 #include "FWCore/Framework/interface/SharedResourcesAcquirer.h"
-#include "FWCore/Framework/src/SharedResourcesRegistry.h"
+#include "FWCore/Framework/interface/SharedResourcesRegistry.h"
 
 #include "IOPool/Common/interface/getWrapperBasePtr.h"
 
@@ -24,8 +24,6 @@ namespace edm {
       : tree_(tree),
         filePtr_(filePtr),
         nextReader_(),
-        resourceAcquirer_(inputType == InputType::Primary ? new SharedResourcesAcquirer()
-                                                          : static_cast<SharedResourcesAcquirer*>(nullptr)),
         inputType_(inputType),
         wrapperBaseTClass_(TClass::GetClass("edm::WrapperBase")) {
     if (inputType == InputType::Primary) {
@@ -43,7 +41,18 @@ namespace edm {
 
   std::shared_ptr<WrapperBase> RootDelayedReader::getProduct_(BranchID const& k, EDProductGetter const* ep) {
     if (lastException_) {
-      std::rethrow_exception(lastException_);
+      try {
+        std::rethrow_exception(lastException_);
+      } catch (edm::Exception const& e) {
+        //avoid growing the context each time the exception is rethrown.
+        auto copy = e;
+        copy.addContext("Rethrowing an exception that happened on a different read request.");
+        throw copy;
+      } catch (cms::Exception& e) {
+        //If we do anything here to 'copy', we would lose the actual type of the exception.
+        e.addContext("Rethrowing an exception that happened on a different read request.");
+        throw;
+      }
     }
     auto branchInfo = getBranchInfo(k);
     if (not branchInfo) {
@@ -78,15 +87,10 @@ namespace edm {
     std::unique_ptr<WrapperBase> edp = getWrapperBasePtr(p, branchInfo->offsetToWrapperBase_);
     br->SetAddress(&p);
     try {
-      //Run and Lumi only have 1 entry number, which is index 0
+      //Run, Lumi, and ProcessBlock only have 1 entry number, which is index 0
       tree_.getEntry(br, tree_.entryNumberForIndex(tree_.branchType() == InEvent ? ep->transitionIndex() : 0));
-    } catch (edm::Exception& exception) {
-      exception.addContext("Rethrowing an exception that happened on a different thread.");
-      lastException_ = std::current_exception();
     } catch (...) {
       lastException_ = std::current_exception();
-    }
-    if (lastException_) {
       std::rethrow_exception(lastException_);
     }
     if (tree_.branchType() == InEvent) {

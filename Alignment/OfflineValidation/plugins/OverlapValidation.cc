@@ -98,7 +98,10 @@ private:
   void analyze(const edm::Event&, const edm::EventSetup&) override;
   void endJob() override;
 
-  virtual void analyze(const Trajectory&, const Propagator&, TrackerHitAssociator&, const TrackerTopology* const tTopo);
+  virtual void analyzeTrajectory(const Trajectory&,
+                                 const Propagator&,
+                                 TrackerHitAssociator&,
+                                 const TrackerTopology* const tTopo);
   int layerFromId(const DetId&, const TrackerTopology* const tTopo) const;
 
   // ----------member data ---------------------------
@@ -109,7 +112,7 @@ private:
 
   edm::ParameterSet config_;
   edm::InputTag trajectoryTag_;
-  SiStripDetInfoFileReader* reader;
+  SiStripDetInfo detInfo_;
   bool doSimHit_;
   const TrackerGeometry* trackerGeometry_;
   const MagneticField* magField_;
@@ -192,7 +195,7 @@ OverlapValidation::OverlapValidation(const edm::ParameterSet& iConfig)
       topoToken_(esConsumes()),
       config_(iConfig),
       rootTree_(nullptr),
-      FileInPath_("CalibTracker/SiStripCommon/data/SiStripDetInfo.dat"),
+      FileInPath_(SiStripDetInfoFileReader::kDefaultFile),
       compressionSettings_(iConfig.getUntrackedParameter<int>("compressionSettings", -1)),
       addExtraBranches_(false),
       minHitsCut_(6),
@@ -202,7 +205,7 @@ OverlapValidation::OverlapValidation(const edm::ParameterSet& iConfig)
   trajectoryTag_ = iConfig.getParameter<edm::InputTag>("trajectories");
   trajectoryToken_ = iC.consumes<TrajectoryCollection>(trajectoryTag_);
   doSimHit_ = iConfig.getParameter<bool>("associateStrip");
-  reader = new SiStripDetInfoFileReader(FileInPath_.fullPath());
+  detInfo_ = SiStripDetInfoFileReader::read(FileInPath_.fullPath());
 
   overlapCounts_[0] = 0;  // #trajectories
   overlapCounts_[1] = 0;  // #hits
@@ -292,7 +295,7 @@ void OverlapValidation::analyze(const edm::Event& iEvent, const edm::EventSetup&
   //
   // mag field & search tracker
   //
-  const MagneticField* magField_ = &iSetup.getData(magFieldToken_);
+  magField_ = &iSetup.getData(magFieldToken_);
   //
   // propagator
   //
@@ -326,16 +329,16 @@ void OverlapValidation::analyze(const edm::Event& iEvent, const edm::EventSetup&
   // loop over trajectories from refit
   const TrackerTopology* const tTopo = &iSetup.getData(topoToken_);
   for (const auto& trajectory : *trajectoryCollection)
-    analyze(trajectory, propagator, *associator, tTopo);
+    analyzeTrajectory(trajectory, propagator, *associator, tTopo);
 
   run_ = iEvent.id().run();
   event_ = iEvent.id().event();
 }
 
-void OverlapValidation::analyze(const Trajectory& trajectory,
-                                const Propagator& propagator,
-                                TrackerHitAssociator& associator,
-                                const TrackerTopology* const tTopo) {
+void OverlapValidation::analyzeTrajectory(const Trajectory& trajectory,
+                                          const Propagator& propagator,
+                                          TrackerHitAssociator& associator,
+                                          const TrackerTopology* const tTopo) {
   typedef std::pair<const TrajectoryMeasurement*, const TrajectoryMeasurement*> Overlap;
   typedef vector<Overlap> OverlapContainer;
   ++overlapCounts_[0];
@@ -653,7 +656,7 @@ void OverlapValidation::analyze(const Trajectory& trajectory,
         uint16_t firstStrip = cluster1->firstStrip();
         uint16_t lastStrip = firstStrip + (cluster1->amplitudes()).size() - 1;
         unsigned short Nstrips;
-        Nstrips = reader->getNumberOfApvsAndStripLength(id1).first * 128;
+        Nstrips = detInfo_.getNumberOfApvsAndStripLength(id1).first * 128;
         bool atEdge = false;
         if (firstStrip == 0 || lastStrip == (Nstrips - 1))
           atEdge = true;
@@ -682,7 +685,7 @@ void OverlapValidation::analyze(const Trajectory& trajectory,
         uint16_t firstStrip = cluster2->firstStrip();
         uint16_t lastStrip = firstStrip + (cluster2->amplitudes()).size() - 1;
         unsigned short Nstrips;
-        Nstrips = reader->getNumberOfApvsAndStripLength(id2).first * 128;
+        Nstrips = detInfo_.getNumberOfApvsAndStripLength(id2).first * 128;
         bool atEdge = false;
         if (firstStrip == 0 || lastStrip == (Nstrips - 1))
           atEdge = true;

@@ -27,6 +27,8 @@
 #include "TH2.h"
 #include "TProfile.h"
 
+#include "oneapi/tbb/task_arena.h"
+
 // user include files
 #include "FWCore/Framework/interface/one/OutputModule.h"
 #include "FWCore/Framework/interface/RunForOutput.h"
@@ -36,6 +38,7 @@
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/MessageLogger/interface/JobReport.h"
 #include "FWCore/Utilities/interface/Digest.h"
+#include "FWCore/Utilities/interface/GlobalIdentifier.h"
 
 #include "DataFormats/Provenance/interface/ProcessHistory.h"
 #include "DataFormats/Provenance/interface/ProcessHistoryID.h"
@@ -90,7 +93,7 @@ namespace {
       m_bufferPtr = dynamic_cast<T*>(iElement->getRootObject());
       assert(nullptr != m_bufferPtr);
       //std::cout <<"#entries: "<<m_bufferPtr->GetEntries()<<std::endl;
-      m_tree->Fill();
+      tbb::this_task_arena::isolate([&] { m_tree->Fill(); });
     }
 
   private:
@@ -118,7 +121,7 @@ namespace {
       *m_fullNameBufferPtr = iElement->getFullname();
       m_flagBuffer = 0;
       m_buffer = iElement->getIntValue();
-      m_tree->Fill();
+      tbb::this_task_arena::isolate([&] { m_tree->Fill(); });
     }
 
   private:
@@ -143,7 +146,7 @@ namespace {
       *m_fullNameBufferPtr = iElement->getFullname();
       m_flagBuffer = 0;
       m_buffer = iElement->getFloatValue();
-      m_tree->Fill();
+      tbb::this_task_arena::isolate([&] { m_tree->Fill(); });
     }
 
   private:
@@ -169,7 +172,7 @@ namespace {
       *m_fullNameBufferPtr = iElement->getFullname();
       m_flagBuffer = 0;
       m_buffer = iElement->getStringValue();
-      m_tree->Fill();
+      tbb::this_task_arena::isolate([&] { m_tree->Fill(); });
     }
 
   private:
@@ -252,12 +255,16 @@ static TreeHelperBase* makeHelper(unsigned int iTypeIndex, TTree* iTree, std::st
       return new TreeHelper<TH1S>(iTree, iFullNameBufferPtr);
     case kTH1DIndex:
       return new TreeHelper<TH1D>(iTree, iFullNameBufferPtr);
+    case kTH1IIndex:
+      return new TreeHelper<TH1I>(iTree, iFullNameBufferPtr);
     case kTH2FIndex:
       return new TreeHelper<TH2F>(iTree, iFullNameBufferPtr);
     case kTH2SIndex:
       return new TreeHelper<TH2S>(iTree, iFullNameBufferPtr);
     case kTH2DIndex:
       return new TreeHelper<TH2D>(iTree, iFullNameBufferPtr);
+    case kTH2IIndex:
+      return new TreeHelper<TH2I>(iTree, iFullNameBufferPtr);
     case kTH3FIndex:
       return new TreeHelper<TH3F>(iTree, iFullNameBufferPtr);
     case kTProfileIndex:
@@ -332,8 +339,10 @@ void DQMRootOutputModule::openFile(edm::FileBlock const&) {
 
   edm::Service<edm::JobReport> jr;
   cms::Digest branchHash;
-  std::string guid{m_file->GetUUID().AsString()};
+  std::string guid{edm::createGlobalIdentifier()};
   std::transform(guid.begin(), guid.end(), guid.begin(), (int (*)(int))std::toupper);
+
+  m_file->WriteObject(&guid, kCmsGuid);
   m_jrToken = jr->outputFileOpened(m_fileName,
                                    m_logicalFileName,
                                    std::string(),
@@ -371,9 +380,11 @@ void DQMRootOutputModule::openFile(edm::FileBlock const&) {
   m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TH1F] = kTH1FIndex;
   m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TH1S] = kTH1SIndex;
   m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TH1D] = kTH1DIndex;
+  m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TH1I] = kTH1IIndex;
   m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TH2F] = kTH2FIndex;
   m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TH2S] = kTH2SIndex;
   m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TH2D] = kTH2DIndex;
+  m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TH2I] = kTH2IIndex;
   m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TH3F] = kTH3FIndex;
   m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TPROFILE] = kTProfileIndex;
   m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TPROFILE2D] = kTProfile2DIndex;
@@ -420,7 +431,7 @@ void DQMRootOutputModule::writeLuminosityBlock(edm::LuminosityBlockForOutput con
       m_type = typeIndex;
       (*it)->getRangeAndReset(m_firstIndex, m_lastIndex);
       storedLumiIndex = true;
-      m_indicesTree->Fill();
+      tbb::this_task_arena::isolate([&] { m_indicesTree->Fill(); });
     }
   }
   if (not storedLumiIndex) {
@@ -429,7 +440,7 @@ void DQMRootOutputModule::writeLuminosityBlock(edm::LuminosityBlockForOutput con
     m_type = kNoTypesStored;
     m_firstIndex = 0;
     m_lastIndex = 0;
-    m_indicesTree->Fill();
+    tbb::this_task_arena::isolate([&] { m_indicesTree->Fill(); });
   }
 
   edm::Service<edm::JobReport> jr;
@@ -474,7 +485,7 @@ void DQMRootOutputModule::writeRun(edm::RunForOutput const& iRun) {
     if ((*it)->wasFilled()) {
       m_type = typeIndex;
       (*it)->getRangeAndReset(m_firstIndex, m_lastIndex);
-      m_indicesTree->Fill();
+      tbb::this_task_arena::isolate([&] { m_indicesTree->Fill(); });
     }
   }
 
@@ -521,7 +532,7 @@ void DQMRootOutputModule::startEndFile() {
       releaseVersion = itPC->releaseVersion();
       passID = itPC->passID();
       parameterSetID = itPC->parameterSetID().compactForm();
-      processHistoryTree->Fill();
+      tbb::this_task_arena::isolate([&] { processHistoryTree->Fill(); });
     }
   }
 
@@ -536,7 +547,7 @@ void DQMRootOutputModule::startEndFile() {
   for (edm::pset::Registry::const_iterator it = psr->begin(), itEnd = psr->end(); it != itEnd; ++it) {
     blob.clear();
     it->second.toString(blob);
-    parameterSetsTree->Fill();
+    tbb::this_task_arena::isolate([&] { parameterSetsTree->Fill(); });
   }
 }
 

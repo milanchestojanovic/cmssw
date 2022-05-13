@@ -1,8 +1,8 @@
 import FWCore.ParameterSet.Config as cms
 
 import sys
-from Configuration.ProcessModifiers.run2_HECollapse_2018_cff import run2_HECollapse_2018
-process = cms.Process("DQM", run2_HECollapse_2018)
+from Configuration.Eras.Era_Run3_cff import Run3
+process = cms.Process("DQM", Run3)
 
 unitTest = False
 if 'unitTest=True' in sys.argv:
@@ -136,3 +136,4 @@ process.pp = cms.Path(process.dqmEnv+process.dqmSaver+process.dqmSaverPB)
 ### process customizations included here
 from DQM.Integration.config.online_customizations_cfi import *
 process = customise(process)
+print("Final Source settings:", process.source)

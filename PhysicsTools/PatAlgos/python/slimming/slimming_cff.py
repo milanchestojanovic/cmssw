@@ -6,8 +6,10 @@ from PhysicsTools.PatAlgos.slimming.lostTracks_cfi import *
 from PhysicsTools.PatAlgos.slimming.offlineSlimmedPrimaryVertices_cfi import *
 from PhysicsTools.PatAlgos.slimming.offlineSlimmedPrimaryVertices4D_cfi import *
 from PhysicsTools.PatAlgos.slimming.offlineSlimmedPrimaryVerticesWithBS_cfi import *
-from PhysicsTools.PatAlgos.slimming.primaryVertexAssociation_cfi import *
+from CommonTools.RecoAlgos.primaryVertexAssociation_cfi import *
+from CommonTools.ParticleFlow.pfEGammaToCandidateRemapper_cfi import *
 from PhysicsTools.PatAlgos.slimming.genParticles_cff import *
+from PhysicsTools.PatAlgos.slimming.genParticleAssociation_cff import *
 from PhysicsTools.PatAlgos.slimming.selectedPatTrigger_cfi import *
 from PhysicsTools.PatAlgos.slimming.slimmedPatTrigger_cfi import *
 from PhysicsTools.PatAlgos.slimming.slimmedJets_cfi      import *
@@ -39,6 +41,7 @@ slimmingTask = cms.Task(
     primaryVertexAssociation,
     primaryVertexWithBSAssociation,
     genParticlesTask,
+    packedCandidateToGenAssociationTask,
     selectedPatTrigger,
     slimmedPatTrigger,
     slimmedCaloJets,
@@ -90,6 +93,7 @@ pp_on_AA.toReplaceWith(
 from Configuration.ProcessModifiers.run2_miniAOD_pp_on_AA_103X_cff import run2_miniAOD_pp_on_AA_103X
 run2_miniAOD_pp_on_AA_103X.toReplaceWith(slimmingTask,cms.Task(primaryVertexAssociationCleaned,slimmingTask.copy()))
 run2_miniAOD_pp_on_AA_103X.toReplaceWith(slimmingTask,cms.Task(primaryVertexWithBSAssociationCleaned,slimmingTask.copy()))
+run2_miniAOD_pp_on_AA_103X.toReplaceWith(slimmingTask,cms.Task(pfEGammaToCandidateRemapperCleaned,slimmingTask.copy()))
 
 from RecoHI.HiTracking.miniAODVertexRecovery_cff import offlinePrimaryVerticesRecovery, offlineSlimmedPrimaryVerticesRecovery
 pp_on_AA.toReplaceWith(
@@ -100,3 +104,7 @@ from Configuration.Eras.Modifier_phase2_timing_cff import phase2_timing
 _phase2_timing_slimmingTask = cms.Task(slimmingTask.copy(),
                                        offlineSlimmedPrimaryVertices4D)
 phase2_timing.toReplaceWith(slimmingTask,_phase2_timing_slimmingTask)
+
+from PhysicsTools.PatAlgos.slimming.patPhotonDRNCorrector_cfi import patPhotonsDRN
+from Configuration.ProcessModifiers.photonDRN_cff import _photonDRN
+_photonDRN.toReplaceWith(slimmingTask, cms.Task(slimmingTask.copy(), patPhotonsDRN))

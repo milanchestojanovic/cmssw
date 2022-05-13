@@ -13,7 +13,6 @@
 // framework & common header files
 #include "DataFormats/Common/interface/Handle.h"
 #include "DataFormats/Provenance/interface/Provenance.h"
-#include "FWCore/Framework/interface/EDAnalyzer.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
@@ -93,7 +92,6 @@
 #include "SimDataFormats/CrossingFrame/interface/MixCollection.h"
 
 #include <cstdlib>
-#include <iostream>
 #include <map>
 #include <memory>
 #include <string>
@@ -103,7 +101,8 @@
 #include "TString.h"
 
 class PGlobalDigi;
-
+class TrackerTopology;
+class TrackerTopologyRcd;
 class GlobalDigisAnalyzer : public DQMEDAnalyzer {
 public:
   typedef std::vector<float> FloatVector;
@@ -156,6 +155,10 @@ private:
   edm::InputTag ECalEBSrc_;
   edm::InputTag ECalEESrc_;
   edm::InputTag ECalESSrc_;
+  edm::ESGetToken<EcalADCToGeVConstant, EcalADCToGeVConstantRcd> ecalADCtoGevToken_;
+  edm::ESGetToken<RPCGeometry, MuonGeometryRecord> rpcGeomToken_;
+  edm::ESGetToken<TrackerTopology, TrackerTopologyRcd> tTopoToken_;
+  edm::ESGetToken<HcalDbService, HcalDbRecord> hcaldbToken_;
 
   std::map<int, double, std::less<int>> ECalgainConv_;
   double ECalbarrelADCtoGeV_;

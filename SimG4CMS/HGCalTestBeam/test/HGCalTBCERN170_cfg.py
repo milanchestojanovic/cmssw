@@ -1,6 +1,7 @@
 import FWCore.ParameterSet.Config as cms
+from Configuration.Eras.Modifier_hgcaltb_cff import hgcaltb
 
-process = cms.Process('SIM')
+process = cms.Process('SIM', hgcaltb)
 
 # import of standard configurations
 process.load("FWCore.MessageService.MessageLogger_cfi")
@@ -12,6 +13,7 @@ process.load('SimG4CMS.HGCalTestBeam.HGCalTB170JulyXML_cfi')
 process.load('Geometry.HGCalCommonData.hgcalNumberingInitialization_cfi')
 process.load('Geometry.HGCalCommonData.hgcalParametersInitialization_cfi')
 process.load('Geometry.HcalTestBeamData.hcalTB06Parameters_cff')
+process.load('Geometry.HcalCommonData.caloSimulationParameters_cff')
 process.load('Configuration.StandardSequences.MagneticField_0T_cff')
 process.load('Configuration.StandardSequences.Generator_cff')
 process.load('IOMC.EventVertexGenerators.VtxSmearedFlat_cfi')
@@ -96,9 +98,10 @@ process.g4SimHits.HGCSD.RejectMouseBite = True
 process.g4SimHits.HGCSD.RotatedWafer    = True
 process.g4SimHits.Watchers = cms.VPSet(cms.PSet(
 		HGCPassive = cms.PSet(
-			LVNames = cms.vstring('HGCalEE','HGCalHE','HGCalAH', 'HGCalBeam', 'CMSE'),
-			MotherName = cms.string('OCMS'),
-			),
+                    LVNames = cms.vstring('HGCalEE','HGCalHE','HGCalAH', 'HGCalBeam', 'CMSE'),
+                    MotherName = cms.string('OCMS'),
+                    IfDD4hep = cms.bool(False),
+                ),
 		type = cms.string('HGCPassive'),
 		)
 				       )

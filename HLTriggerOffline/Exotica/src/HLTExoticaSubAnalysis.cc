@@ -5,7 +5,6 @@
 #include "DataFormats/Common/interface/Handle.h"
 #include "FWCore/Framework/interface/ConsumesCollector.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
-#include "FWCore/ServiceRegistry/interface/Service.h"
 #include "FWCore/Utilities/interface/TypeID.h"
 
 #include "CommonTools/Utils/interface/PtComparator.h"
@@ -52,7 +51,6 @@ HLTExoticaSubAnalysis::HLTExoticaSubAnalysis(const edm::ParameterSet &pset,
       _genMETSelector(nullptr),
       _recCaloMETSelector(nullptr),
       _recCaloMHTSelector(nullptr),
-      _l1METSelector(nullptr),
       _recPFTauSelector(nullptr),
       _recPhotonSelector(nullptr),
       _recPFJetSelector(nullptr),
@@ -174,8 +172,6 @@ HLTExoticaSubAnalysis::~HLTExoticaSubAnalysis() {
   _recCaloMETSelector = nullptr;
   delete _recCaloMHTSelector;
   _recCaloMHTSelector = nullptr;
-  delete _l1METSelector;
-  _l1METSelector = nullptr;
   delete _recPFTauSelector;
   _recPFTauSelector = nullptr;
   delete _recPFJetSelector;
@@ -659,9 +655,18 @@ void HLTExoticaSubAnalysis::analyze(const edm::Event &iEvent, const edm::EventSe
       }
     }
 
+    int jel = 0;
+    int jmu = 0;
+    int jmutrk = 0;
+
+    // jel, jmu and jmutrk are being used as a dedicated counters to avoid getting
+    // non-existent elements inside trkObjs[11], trkObjs[13] and trkObjs[130], respectively
+    // more information in the issue https://github.com/cms-sw/cmssw/issues/32550
+
     for (size_t j = 0; (j != matchesReco.size()) && isPassedLeadingCut; ++j) {
       const unsigned int objType = matchesReco[j].pdgId();
-      // std::cout << "(4) Gonna call with " << objType << std::endl;
+      //std::cout << "(4) Gonna call with " << objType << std::endl;
+
       const std::string objTypeStr = EVTColContainer::getTypeString(objType);
 
       float pt = matchesReco[j].pt();
@@ -703,10 +708,25 @@ void HLTExoticaSubAnalysis::analyze(const edm::Event &iEvent, const edm::EventSe
         this->fillHist("rec", objTypeStr, "SumEt", theSumEt[objType]);
       }
 
-      if (trkObjs[objType].size() >= j + 1) {
-        float dxyRec = trkObjs[objType].at(j)->dxy(cols->bs->position());
+      if (objType == 11) {
+        float dxyRec = trkObjs[objType].at(jel)->dxy(cols->bs->position());
         this->fillHist("rec", objTypeStr, "Dxy", dxyRec);
         dxys.push_back(dxyRec);
+        ++jel;
+      }
+
+      if (objType == 13) {
+        float dxyRec = trkObjs[objType].at(jmu)->dxy(cols->bs->position());
+        this->fillHist("rec", objTypeStr, "Dxy", dxyRec);
+        dxys.push_back(dxyRec);
+        ++jmu;
+      }
+
+      if (objType == 130) {
+        float dxyRec = trkObjs[objType].at(jmutrk)->dxy(cols->bs->position());
+        this->fillHist("rec", objTypeStr, "Dxy", dxyRec);
+        dxys.push_back(dxyRec);
+        ++jmutrk;
       }
 
     }  // Closes loop in reco
@@ -744,7 +764,6 @@ const std::vector<unsigned int> HLTExoticaSubAnalysis::getObjectsType(const std:
                                                  EVTColContainer::GENMET,
                                                  EVTColContainer::CALOMET,
                                                  EVTColContainer::CALOMHT,
-                                                 EVTColContainer::L1MET,
                                                  EVTColContainer::PFTAU,
                                                  EVTColContainer::PFJET,
                                                  EVTColContainer::CALOJET};
@@ -816,10 +835,6 @@ void HLTExoticaSubAnalysis::getNamesOfObjects(const edm::ParameterSet &anpset) {
   if (anpset.exists("hltMETLabel")) {
     _recLabels[EVTColContainer::CALOMET] = anpset.getParameter<edm::InputTag>("hltMETLabel");
     _genSelectorMap[EVTColContainer::CALOMET] = nullptr;
-  }
-  if (anpset.exists("l1METLabel")) {
-    _recLabels[EVTColContainer::L1MET] = anpset.getParameter<edm::InputTag>("l1METLabel");
-    _genSelectorMap[EVTColContainer::L1MET] = nullptr;
   }
   if (anpset.exists("recPFTauLabel")) {
     _recLabels[EVTColContainer::PFTAU] = anpset.getParameter<edm::InputTag>("recPFTauLabel");
@@ -903,11 +918,6 @@ void HLTExoticaSubAnalysis::registerConsumes(edm::ConsumesCollector &iC) {
       _tokens[it->first] = token;
     } else if (it->first == EVTColContainer::CALOMHT) {
       edm::EDGetTokenT<reco::CaloMETCollection> particularToken = iC.consumes<reco::CaloMETCollection>(it->second);
-      edm::EDGetToken token(particularToken);
-      _tokens[it->first] = token;
-    } else if (it->first == EVTColContainer::L1MET) {
-      edm::EDGetTokenT<l1extra::L1EtMissParticleCollection> particularToken =
-          iC.consumes<l1extra::L1EtMissParticleCollection>(it->second);
       edm::EDGetToken token(particularToken);
       _tokens[it->first] = token;
     } else if (it->first == EVTColContainer::PFTAU) {
@@ -1016,11 +1026,6 @@ void HLTExoticaSubAnalysis::getHandlesToObjects(const edm::Event &iEvent, EVTCol
       iEvent.getByToken(it->second, theHandle);
       if (theHandle.isValid())
         col->setCaloMHT(theHandle.product());
-    } else if (it->first == EVTColContainer::L1MET) {
-      edm::Handle<l1extra::L1EtMissParticleCollection> theHandle;
-      iEvent.getByToken(it->second, theHandle);
-      if (theHandle.isValid())
-        col->set(theHandle.product());
     } else if (it->first == EVTColContainer::PFTAU) {
       edm::Handle<reco::PFTauCollection> theHandle;
       iEvent.getByToken(it->second, theHandle);
@@ -1143,8 +1148,6 @@ void HLTExoticaSubAnalysis::initSelector(const unsigned int &objtype) {
     _recCaloMETSelector = new StringCutObjectSelector<reco::CaloMET>(_recCut[objtype]);
   } else if (objtype == EVTColContainer::CALOMHT && _recCaloMHTSelector == nullptr) {
     _recCaloMHTSelector = new StringCutObjectSelector<reco::CaloMET>(_recCut[objtype]);
-  } else if (objtype == EVTColContainer::L1MET && _l1METSelector == nullptr) {
-    _l1METSelector = new StringCutObjectSelector<l1extra::L1EtMissParticle>(_recCut[objtype]);
   } else if (objtype == EVTColContainer::PFTAU && _recPFTauSelector == nullptr) {
     _recPFTauSelector = new StringCutObjectSelector<reco::PFTau>(_recCut[objtype]);
   } else if (objtype == EVTColContainer::PFJET && _recPFJetSelector == nullptr) {
@@ -1274,16 +1277,6 @@ void HLTExoticaSubAnalysis::insertCandidates(const unsigned int &objType,
         matches->push_back(m);
         if (i == 0)
           theSumEt[objType] = cols->caloMHTs->at(i).sumEt();
-      }
-    }
-  } else if (objType == EVTColContainer::L1MET) {
-    for (size_t i = 0; i < cols->l1METs->size(); i++) {
-      LogDebug("ExoticaValidation") << "Inserting L1MET " << i;
-      if (_l1METSelector->operator()(cols->l1METs->at(i))) {
-        reco::LeafCandidate m(0, cols->l1METs->at(i).p4(), cols->l1METs->at(i).vertex(), objType, 0, true);
-        matches->push_back(m);
-        if (i == 0)
-          theSumEt[objType] = cols->l1METs->at(i).etTotal();
       }
     }
   } else if (objType == EVTColContainer::PFTAU) {

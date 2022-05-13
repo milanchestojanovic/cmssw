@@ -4,7 +4,11 @@
 using namespace reco;
 
 Photon::Photon(const LorentzVector& p4, const Point& caloPos, const PhotonCoreRef& core, const Point& vtx)
-    : RecoCandidate(0, p4, vtx, 22), caloPosition_(caloPos), photonCore_(core), pixelSeed_(false) {}
+    : RecoCandidate(0, p4, vtx, 22),
+      caloPosition_(caloPos),
+      photonCore_(core),
+      pixelSeed_(false),
+      haloTaggerMVAVal_(99) {}
 
 Photon::Photon(const Photon& rhs)
     : RecoCandidate(rhs),
@@ -19,7 +23,8 @@ Photon::Photon(const Photon& rhs)
       saturationInfo_(rhs.saturationInfo_),
       eCorrections_(rhs.eCorrections_),
       mipVariableBlock_(rhs.mipVariableBlock_),
-      pfIsolation_(rhs.pfIsolation_) {}
+      pfIsolation_(rhs.pfIsolation_),
+      haloTaggerMVAVal_(rhs.haloTaggerMVAVal_) {}
 
 Photon::~Photon() {}
 
@@ -177,5 +182,38 @@ const Candidate::LorentzVector& Photon::p4(P4type type) const {
       return eCorrections_.regression2P4;
     default:
       throw cms::Exception("reco::Photon") << "unexpected p4 type: " << type << " cannot return p4 ";
+  }
+}
+
+void Photon::hcalToRun2EffDepth() {
+  auto& ss1 = showerShapeBlock_;
+  auto& ss2 = full5x5_showerShapeBlock_;
+  auto& iv1 = isolationR03_;
+  auto& iv2 = isolationR04_;
+
+  for (uint id = 2u; id < ss1.hcalOverEcal.size(); ++id) {
+    ss1.hcalOverEcal[1] += ss1.hcalOverEcal[id];
+    ss1.hcalOverEcalBc[1] += ss1.hcalOverEcalBc[id];
+
+    ss1.hcalOverEcal[id] = 0.f;
+    ss1.hcalOverEcalBc[id] = 0.f;
+
+    ss2.hcalOverEcal[1] += ss2.hcalOverEcal[id];
+    ss2.hcalOverEcalBc[1] += ss2.hcalOverEcalBc[id];
+
+    ss2.hcalOverEcal[id] = 0.f;
+    ss2.hcalOverEcalBc[id] = 0.f;
+
+    iv1.hcalRecHitSumEt[1] += iv1.hcalRecHitSumEt[id];
+    iv1.hcalRecHitSumEtBc[1] += iv1.hcalRecHitSumEtBc[id];
+
+    iv1.hcalRecHitSumEt[id] = 0.f;
+    iv1.hcalRecHitSumEtBc[id] = 0.f;
+
+    iv2.hcalRecHitSumEt[1] += iv2.hcalRecHitSumEt[id];
+    iv2.hcalRecHitSumEtBc[1] += iv2.hcalRecHitSumEtBc[id];
+
+    iv2.hcalRecHitSumEt[id] = 0.f;
+    iv2.hcalRecHitSumEtBc[id] = 0.f;
   }
 }

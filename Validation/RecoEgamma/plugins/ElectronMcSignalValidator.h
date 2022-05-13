@@ -32,6 +32,7 @@ public:
 private:
   edm::EDGetTokenT<reco::GenParticleCollection> mcTruthCollection_;           // genParticles
   edm::EDGetTokenT<reco::GsfElectronCollection> electronCollection_;          // gedGsfElectrons
+  edm::EDGetTokenT<reco::GsfElectronCollection> electronCollectionEndcaps_;   // gedGsfElectrons
   edm::EDGetTokenT<reco::GsfElectronCoreCollection> electronCoreCollection_;  // gedGsfElectronCore
   edm::EDGetTokenT<reco::GsfTrackCollection> electronTrackCollection_;
   edm::EDGetTokenT<reco::ElectronSeedCollection> electronSeedCollection_;
@@ -57,7 +58,8 @@ private:
 
   double maxPt_;
   double maxAbsEta_;
-  double deltaR_, deltaR2_;
+  double maxAbsEtaExtended_;
+  double deltaR2_;
   std::vector<int> matchingIDs_;
   std::vector<int> matchingMotherIDs_;
   std::string inputFile_;
@@ -83,6 +85,10 @@ private:
   int eta2D_nbin;
   double eta_min;
   double eta_max;
+  int eta_nbin_extended;
+  int eta2D_nbin_extended;
+  double eta_min_extended;
+  double eta_max_extended;
   int deta_nbin;
   double deta_min;
   double deta_max;
@@ -158,6 +164,7 @@ private:
   MonitorElement *h2_mc_PtEta;
 
   MonitorElement *h1_mc_Eta_matched;
+  MonitorElement *h1_mc_Eta_Extended_matched;
   MonitorElement *h1_mc_AbsEta_matched;
   MonitorElement *h1_mc_Pt_matched;
   MonitorElement *h1_mc_Phi_matched;
@@ -178,11 +185,7 @@ private:
   MonitorElement *h1_ele_EseedOP_all_barrel;
   MonitorElement *h1_ele_EseedOP_all_endcaps;
   MonitorElement *h1_ele_EoPout_all;
-  MonitorElement *h1_ele_EoPout_all_barrel;
-  MonitorElement *h1_ele_EoPout_all_endcaps;
   MonitorElement *h1_ele_EeleOPout_all;
-  MonitorElement *h1_ele_EeleOPout_all_barrel;
-  MonitorElement *h1_ele_EeleOPout_all_endcaps;
   MonitorElement *h1_ele_dEtaSc_propVtx_all;
   MonitorElement *h1_ele_dEtaSc_propVtx_all_barrel;
   MonitorElement *h1_ele_dEtaSc_propVtx_all_endcaps;
@@ -267,7 +270,6 @@ private:
   MonitorElement *h2_scl_EtaVsPhi;
   MonitorElement *h1_scl_Eta;
   MonitorElement *h1_scl_Phi;
-  //    MonitorElement *h1_scl_ESFrac;
   MonitorElement *h1_scl_ESFrac_endcaps;
 
   MonitorElement *h2_scl_EoEtruePfVsEg;
@@ -368,6 +370,7 @@ private:
   MonitorElement *h1_ele_EoP_barrel;
   MonitorElement *h1_ele_EoP_endcaps;
   MonitorElement *h2_ele_EoPVsEta;
+  MonitorElement *h2_ele_EoPVsEtaExtended;
   MonitorElement *h2_ele_EoPVsPhi;
   MonitorElement *h2_ele_EoPVsE;
   MonitorElement *h1_ele_EseedOP;

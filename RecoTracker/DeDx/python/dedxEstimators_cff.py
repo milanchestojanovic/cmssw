@@ -1,7 +1,7 @@
 import FWCore.ParameterSet.Config as cms
 
 dedxHitInfo = cms.EDProducer("DeDxHitInfoProducer",
-    tracks                     = cms.InputTag("generalTracks"),
+    tracks             = cms.InputTag("generalTracks"),
 
     minTrackHits       = cms.uint32(0),
     minTrackPt         = cms.double(10),
@@ -22,28 +22,21 @@ dedxHitInfo = cms.EDProducer("DeDxHitInfoProducer",
     lowPtTracksEstimatorParameters = cms.PSet( # generalized truncated average
         fraction = cms.double(-0.15), # negative = throw away the 15% with lowest charge
         exponent = cms.double(-2.0),
+        truncate = cms.bool(True),
     ),
     lowPtTracksDeDxThreshold = cms.double(3.5), # threshold on tracks
+    usePixelForPrescales = cms.bool(True)
 )
 
-dedxHarmonic2 = cms.EDProducer("DeDxEstimatorProducer",
-    tracks                     = cms.InputTag("generalTracks"),
- 
-    estimator      = cms.string('generic'),
-    fraction       = cms.double(0.4),        #Used only if estimator='truncated'
-    exponent       = cms.double(-2.0),       #Used only if estimator='generic'
- 
-    UseStrip       = cms.bool(True),
-    UsePixel       = cms.bool(False),
-    ShapeTest      = cms.bool(True),
-    MeVperADCStrip = cms.double(3.61e-06*265),
-    MeVperADCPixel = cms.double(3.61e-06),
+import RecoTracker.DeDx.DeDxEstimatorProducer_cfi as _mod
 
-    Reccord            = cms.string("SiStripDeDxMip_3D_Rcd"), #used only for discriminators : estimators='productDiscrim' or 'btagDiscrim' or 'smirnovDiscrim' or 'asmirnovDiscrim'
-    ProbabilityMode    = cms.string("Accumulation"),          #used only for discriminators : estimators='productDiscrim' or 'btagDiscrim' or 'smirnovDiscrim' or 'asmirnovDiscrim'
+dedxHarmonic2 = _mod.DeDxEstimatorProducer.clone(
+    estimator      = 'generic',
+    fraction       = 0.4,        #Used only if estimator='truncated'
+    exponent       = -2.0,       #Used only if estimator='generic'
 
-    UseCalibration  = cms.bool(False),
-    calibrationPath = cms.string(""),
+    Record            = "SiStripDeDxMip_3D_Rcd", #used only for discriminators : estimators='productDiscrim' or 'btagDiscrim' or 'smirnovDiscrim' or 'asmirnovDiscrim'
+    ProbabilityMode    = "Accumulation",          #used only for discriminators : estimators='productDiscrim' or 'btagDiscrim' or 'smirnovDiscrim' or 'asmirnovDiscrim'
 )
 
 from Configuration.Eras.Modifier_fastSim_cff import fastSim
@@ -87,3 +80,10 @@ doAlldEdXEstimatorsTask = cms.Task(dedxTruncated40 , dedxHarmonic2 , dedxPixelHa
 doAlldEdXEstimators = cms.Sequence(doAlldEdXEstimatorsTask)
 
 fastSim.toReplaceWith(doAlldEdXEstimatorsTask, cms.Task(dedxHarmonic2, dedxPixelHarmonic2))
+
+# use only the strips for Run-3
+from Configuration.Eras.Modifier_run3_common_cff import run3_common
+run3_common.toModify(dedxHitInfo,
+    lowPtTracksEstimatorParameters = dict(fraction = 0., exponent = -2.0,truncate = False),
+    usePixelForPrescales = False
+)

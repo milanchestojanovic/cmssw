@@ -37,7 +37,7 @@ namespace mtd_digitizer {
     // index , det id, time
     typedef std::tuple<int, uint32_t, float> MTDCaloHitTuple_t;
 
-    bool orderByDetIdThenTime(const MTDCaloHitTuple_t& a, const MTDCaloHitTuple_t& b) {
+    inline bool orderByDetIdThenTime(const MTDCaloHitTuple_t& a, const MTDCaloHitTuple_t& b) {
       unsigned int detId_a(std::get<1>(a)), detId_b(std::get<1>(b));
 
       if (detId_a < detId_b)
@@ -179,7 +179,10 @@ namespace mtd_digitizer {
   void MTDDigitizer<Traits>::accumulate(edm::Event const& e, edm::EventSetup const& c, CLHEP::HepRandomEngine* hre) {
     edm::Handle<edm::PSimHitContainer> simHits;
     e.getByLabel(inputSimHits_, simHits);
-    accumulate(simHits, 0, hre);
+    if (simHits.isValid())
+      accumulate(simHits, 0, hre);
+    else
+      edm::LogWarning("MTDMix") << "MTDDigitizer:: Cannot find hits for " << inputSimHits_;
   }
 
   template <class Traits>
@@ -188,7 +191,10 @@ namespace mtd_digitizer {
                                         CLHEP::HepRandomEngine* hre) {
     edm::Handle<edm::PSimHitContainer> simHits;
     e.getByLabel(inputSimHits_, simHits);
-    accumulate(simHits, e.bunchCrossing(), hre);
+    if (simHits.isValid())
+      accumulate(simHits, e.bunchCrossing(), hre);
+    else
+      edm::LogWarning("MTDMix") << "MTDDigitizer:: Cannot find hits for " << inputSimHits_;
   }
 
   template <class Traits>

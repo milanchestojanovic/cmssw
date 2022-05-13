@@ -1,4 +1,5 @@
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -7,16 +8,12 @@
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "FWCore/Framework/interface/ESTransientHandle.h"
-#include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
-
+#include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 
-#include "DetectorDescription/Core/interface/DDCompactView.h"
-#include "Geometry/Records/interface/IdealGeometryRecord.h"
 #include "Geometry/Records/interface/HcalRecNumberingRecord.h"
-#include "Geometry/HcalCommonData/interface/HcalDDDRecConstants.h"
 #include "Geometry/CaloTopology/interface/HcalTopology.h"
 #include "DataFormats/HcalDetId/interface/HcalDetId.h"
 #include "DataFormats/HcalDetId/interface/HcalSubdetector.h"
@@ -35,35 +32,24 @@ private:
   void doTest(const HcalTopology& topology);
 
   // ----------member data ---------------------------
+  const edm::ESGetToken<HcalTopology, HcalRecNumberingRecord> tokTopo_;
 };
 
-HcalTopologyTester::HcalTopologyTester(const edm::ParameterSet&) {}
+HcalTopologyTester::HcalTopologyTester(const edm::ParameterSet&)
+    : tokTopo_{esConsumes<HcalTopology, HcalRecNumberingRecord>(edm::ESInputTag{})} {}
 
 void HcalTopologyTester::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
   desc.setUnknown();
-  descriptions.addDefault(desc);
+  descriptions.add("hcalTopologyTester", desc);
 }
 
-void HcalTopologyTester::analyze(edm::Event const&, edm::EventSetup const& iSetup) {
-  edm::ESTransientHandle<DDCompactView> pDD;
-  iSetup.get<IdealGeometryRecord>().get(pDD);
-  std::cout << "Gets Compact View\n";
-  edm::ESHandle<HcalDDDRecConstants> pHSNDC;
-  iSetup.get<HcalRecNumberingRecord>().get(pHSNDC);
-  std::cout << "Gets RecNumbering Record\n";
-  edm::ESHandle<HcalTopology> topo;
-  iSetup.get<HcalRecNumberingRecord>().get(topo);
-  if (topo.isValid())
-    doTest(*topo);
-  else
-    std::cout << "Cannot get a valid HcalTopology Object\n";
-}
+void HcalTopologyTester::analyze(edm::Event const&, edm::EventSetup const& iSetup) { doTest(iSetup.getData(tokTopo_)); }
 
 void HcalTopologyTester::doTest(const HcalTopology& topology) {
   // First test on movements along eta/phi directions
-  std::cout << "\nTest on movements along eta/phi directions" << std::endl
-            << "==========================================" << std::endl;
+  edm::LogVerbatim("HCalGeom") << "\nTest on movements along eta/phi directions"
+                               << "\n==========================================";
   for (int idet = 0; idet < 4; idet++) {
     HcalSubdetector subdet = HcalBarrel;
     if (idet == 1)
@@ -82,27 +68,32 @@ void HcalTopologyTester::doTest(const HcalTopology& topology) {
             std::vector<DetId> idN = topology.north(id);
             std::vector<DetId> idS = topology.south(id);
             std::vector<DetId> idU = topology.up(id);
-            std::cout << "Neighbours for : Tower " << id << std::endl;
-            std::cout << "          " << idE.size() << " sets along East:";
+            edm::LogVerbatim("HCalGeom") << "Neighbours for : Tower " << id;
+            std::ostringstream st1;
+            st1 << "          " << idE.size() << " sets along East:";
             for (auto& i : idE)
-              std::cout << " " << (HcalDetId)(i());
-            std::cout << std::endl;
-            std::cout << "          " << idW.size() << " sets along West:";
+              st1 << " " << (HcalDetId)(i());
+            edm::LogVerbatim("HCalGeom") << st1.str();
+            std::ostringstream st2;
+            st2 << "          " << idW.size() << " sets along West:";
             for (auto& i : idW)
-              std::cout << " " << (HcalDetId)(i());
-            std::cout << std::endl;
-            std::cout << "          " << idN.size() << " sets along North:";
+              st2 << " " << (HcalDetId)(i());
+            edm::LogVerbatim("HCalGeom") << st2.str();
+            std::ostringstream st3;
+            st3 << "          " << idN.size() << " sets along North:";
             for (auto& i : idN)
-              std::cout << " " << (HcalDetId)(i());
-            std::cout << std::endl;
-            std::cout << "          " << idS.size() << " sets along South:";
+              st3 << " " << (HcalDetId)(i());
+            edm::LogVerbatim("HCalGeom") << st3.str();
+            std::ostringstream st4;
+            st4 << "          " << idS.size() << " sets along South:";
             for (auto& i : idS)
-              std::cout << " " << (HcalDetId)(i());
-            std::cout << std::endl;
-            std::cout << "          " << idU.size() << " sets up in depth:";
+              st4 << " " << (HcalDetId)(i());
+            edm::LogVerbatim("HCalGeom") << st4.str();
+            std::ostringstream st5;
+            st5 << "          " << idU.size() << " sets up in depth:";
             for (auto& i : idU)
-              std::cout << " " << (HcalDetId)(i());
-            std::cout << std::endl;
+              st5 << " " << (HcalDetId)(i());
+            edm::LogVerbatim("HCalGeom") << st5.str();
           }
         }
       }
@@ -110,7 +101,8 @@ void HcalTopologyTester::doTest(const HcalTopology& topology) {
   }
 
   // Check on Dense Index
-  std::cout << "\nCheck on Dense Index" << std::endl << "=====================" << std::endl;
+  edm::LogVerbatim("HCalGeom") << "\nCheck on Dense Index"
+                               << "\n=====================";
   int maxDepthHB = topology.maxDepthHB();
   int maxDepthHE = topology.maxDepthHE();
   for (int det = 1; det <= HcalForward; det++) {
@@ -121,11 +113,9 @@ void HcalTopologyTester::doTest(const HcalTopology& topology) {
           if (topology.valid(cell)) {
             unsigned int dense = topology.detId2denseId(DetId(cell));
             DetId id = topology.denseId2detId(dense);
-            if (cell == HcalDetId(id))
-              std::cout << cell << " Dense " << std::hex << dense << std::dec << " o/p " << HcalDetId(id) << std::endl;
-            else
-              std::cout << cell << " Dense " << std::hex << dense << std::dec << " o/p " << HcalDetId(id)
-                        << " **** ERROR *****" << std::endl;
+            std::string cherr = (cell != HcalDetId(id)) ? " **** ERROR *****" : "";
+            edm::LogVerbatim("HCalGeom") << cell << " Dense " << std::hex << dense << std::dec << " o/p "
+                                         << HcalDetId(id) << cherr;
           }
         }
       }
@@ -133,18 +123,20 @@ void HcalTopologyTester::doTest(const HcalTopology& topology) {
   }
 
   // Check list of depths
-  std::cout << "\nCheck list of Depths" << std::endl << "====================" << std::endl;
+  edm::LogVerbatim("HCalGeom") << "\nCheck list of Depths"
+                               << "\n====================";
   for (int eta = topology.lastHERing() - 2; eta <= topology.lastHERing(); ++eta) {
     for (unsigned int phi = 0; phi <= HcalDetId::kHcalPhiMask2; phi++) {
       for (int depth = 1; depth <= maxDepthHE; depth++) {
         HcalDetId cell(HcalEndcap, eta, phi, depth);
         if (topology.valid(cell)) {
           std::vector<int> depths = topology.mergedDepthList29(cell);
-          std::cout << cell << " is with merge depth flag " << topology.mergedDepth29(cell) << " having "
-                    << depths.size() << " merged depths:";
+          std::ostringstream st1;
+          st1 << cell << " is with merge depth flag " << topology.mergedDepth29(cell) << " having " << depths.size()
+              << " merged depths:";
           for (unsigned int k = 0; k < depths.size(); ++k)
-            std::cout << " [" << k << "]:" << depths[k];
-          std::cout << std::endl;
+            st1 << " [" << k << "]:" << depths[k];
+          edm::LogVerbatim("HCalGeom") << st1.str();
         }
       }
     }

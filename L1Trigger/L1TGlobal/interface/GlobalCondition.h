@@ -11,6 +11,7 @@
  *    <TODO: enter implementation details>
  *
  * \author: Brian Winer, OSU   Vasile Mihai Ghete - HEPHY Vienna
+ *          Elisa Fontanesi - extended for three-body correlation conditions
  *
  * $Date$
  * $Revision$
@@ -93,6 +94,9 @@ public:
   /// and with spatial correlations
   const bool corr() const;
 
+  /// get logic flag for three-body conditions, trigger objects are muons
+  const bool corrThree() const;
+
   /// print condition
   virtual void print(std::ostream& myCout) const;
 
@@ -113,7 +117,7 @@ protected:
   std::vector<l1t::GlobalObject> m_objectType;
 
   /// the operator used for the condition (>=, =): true for >=
-  bool m_condGEq;
+  bool m_condGEq = false;
 
   /// condition is located on condition chip m_condChipNr
   int m_condChipNr;

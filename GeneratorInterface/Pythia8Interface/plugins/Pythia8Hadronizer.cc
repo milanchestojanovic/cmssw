@@ -18,6 +18,7 @@ using namespace Pythia8;
 #include "GeneratorInterface/Pythia8Interface/interface/Py8InterfaceBase.h"
 
 #include "GeneratorInterface/Pythia8Interface/plugins/ReweightUserHooks.h"
+#include "GeneratorInterface/Pythia8Interface/interface/CustomHook.h"
 
 // PS matchning prototype
 //
@@ -58,6 +59,7 @@ using namespace Pythia8;
 
 #include "GeneratorInterface/Core/interface/GeneratorFilter.h"
 #include "GeneratorInterface/Core/interface/HadronizerFilter.h"
+#include "GeneratorInterface/Core/interface/ConcurrentGeneratorFilter.h"
 #include "GeneratorInterface/Core/interface/ConcurrentHadronizerFilter.h"
 
 #include "GeneratorInterface/Pythia8Interface/plugins/LHAupLesHouches.h"
@@ -144,6 +146,9 @@ private:
 
   //PT filter hook
   std::shared_ptr<PTFilterHook> fPTFilterHook;
+
+  //Generic customized hooks vector
+  std::shared_ptr<UserHooksVector> fCustomHooksVector;
 
   int EV1_nFinal;
   bool EV1_vetoOn;
@@ -308,6 +313,17 @@ Pythia8Hadronizer::Pythia8Hadronizer(const edm::ParameterSet &params)
                                                    0));
   }
 
+  if (params.exists("UserCustomization")) {
+    fCustomHooksVector = std::make_shared<UserHooksVector>();
+    const std::vector<edm::ParameterSet> userParams =
+        params.getParameter<std::vector<edm::ParameterSet>>("UserCustomization");
+    for (const auto &pluginParams : userParams) {
+      (fCustomHooksVector->hooks)
+          .push_back(
+              CustomHookFactory::get()->create(pluginParams.getParameter<std::string>("pluginName"), pluginParams));
+    }
+  }
+
   if (params.exists("VinciaPlugin")) {
     throw edm::Exception(edm::errors::Configuration, "Pythia8Interface")
         << " Obsolete parameter: VinciaPlugin \n Please use the parameter PartonShowers:model instead \n";
@@ -446,8 +462,17 @@ bool Pythia8Hadronizer::initializeForInternalPartons() {
   }
 
   if (!(fUserHooksVector->hooks).empty() && !UserHooksSet) {
-    fMasterGen->setUserHooksPtr(fUserHooksVector);
+    for (auto &fUserHook : fUserHooksVector->hooks) {
+      fMasterGen->addUserHooksPtr(fUserHook);
+    }
     UserHooksSet = true;
+  }
+
+  if (fCustomHooksVector.get()) {
+    edm::LogInfo("Pythia8Interface") << "Adding customized user hooks";
+    for (const auto &fUserHook : fCustomHooksVector->hooks) {
+      fMasterGen->addUserHooksPtr(fUserHook);
+    }
   }
 
   edm::LogInfo("Pythia8Interface") << "Initializing MasterGen";
@@ -505,6 +530,13 @@ bool Pythia8Hadronizer::initializeForExternalPartons() {
   if (fEmissionVetoHook1.get()) {
     edm::LogInfo("Pythia8Interface") << "Turning on Emission Veto Hook 1 from CMSSW Pythia8Interface";
     (fUserHooksVector->hooks).push_back(fEmissionVetoHook1);
+  }
+
+  if (fCustomHooksVector.get()) {
+    edm::LogInfo("Pythia8Interface") << "Adding customized user hook";
+    for (const auto &fUserHook : fCustomHooksVector->hooks) {
+      (fUserHooksVector->hooks).push_back(fUserHook);
+    }
   }
 
   if (fMasterGen->settings.mode("POWHEG:veto") > 0 || fMasterGen->settings.mode("POWHEG:MPIveto") > 0) {
@@ -589,7 +621,9 @@ bool Pythia8Hadronizer::initializeForExternalPartons() {
   }
 
   if (!(fUserHooksVector->hooks).empty() && !UserHooksSet) {
-    fMasterGen->setUserHooksPtr(fUserHooksVector);
+    for (auto &fUserHook : fUserHooksVector->hooks) {
+      fMasterGen->addUserHooksPtr(fUserHook);
+    }
     UserHooksSet = true;
   }
 
@@ -1016,6 +1050,10 @@ DEFINE_FWK_MODULE(Pythia8GeneratorFilter);
 
 typedef edm::HadronizerFilter<Pythia8Hadronizer, ExternalDecayDriver> Pythia8HadronizerFilter;
 DEFINE_FWK_MODULE(Pythia8HadronizerFilter);
+
+typedef edm::ConcurrentGeneratorFilter<Pythia8Hadronizer, ConcurrentExternalDecayDriver>
+    Pythia8ConcurrentGeneratorFilter;
+DEFINE_FWK_MODULE(Pythia8ConcurrentGeneratorFilter);
 
 typedef edm::ConcurrentHadronizerFilter<Pythia8Hadronizer, ConcurrentExternalDecayDriver>
     Pythia8ConcurrentHadronizerFilter;
