@@ -25,13 +25,13 @@ process.HiForestInfo.info = cms.vstring("HiForest, miniAOD, 132X, data")
 process.source = cms.Source("PoolSource",
     duplicateCheckMode = cms.untracked.string("noDuplicateCheck"),
     fileNames = cms.untracked.vstring(
-        'root://eoscms.cern.ch//store/group/phys_heavyions/wangj/RECO2023/PhysicsHIPhysicsRawPrime0/374288/step3_RAW2DIGI_L1Reco_RECO_PAT.root'
+        'root://eoscms.cern.ch//store/group/phys_heavyions/wangj/RECO2023/miniaod_HIExpress_374354/reco_run374354_ls0050_streamHIExpress_StorageManager.root'
     ), 
 )
 
 # number of events to process, set to -1 to process all events
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(20)
+    input = cms.untracked.int32(25)
     )
 
 ###############################################################################
@@ -90,6 +90,8 @@ process.load("TrackingTools.TransientTrack.TransientTrackBuilder_cfi")
 ################################
 # jet reco sequence
 process.load('HeavyIonsAnalysis.JetAnalysis.akCs4PFJetSequence_pponPbPb_data_cff')
+process.load('HeavyIonsAnalysis.JetAnalysis.akPu4CaloJetSequence_pponPbPb_data_cff')
+process.akPu4CaloJetAnalyzer.doHiJetID = True
 ################################
 # tracks
 process.load("HeavyIonsAnalysis.TrackAnalysis.TrackAnalyzers_cff")
@@ -110,6 +112,32 @@ process.zdcanalyzer.zdcDigiSrc = cms.InputTag("hcalDigis", "ZDC")
 process.zdcanalyzer.calZDCDigi = False
 process.zdcanalyzer.verbose = False
 
+#from CondCore.CondDB.CondDB_cfi import *
+#process.es_pool = cms.ESSource("PoolDBESSource",
+#    timetype = cms.string('runnumber'),
+#    toGet = cms.VPSet(
+#        cms.PSet(
+#            record = cms.string("HcalElectronicsMapRcd"),
+#            tag = cms.string("HcalElectronicsMap_2021_v2.0_data")
+#        )
+#    ),
+#    connect = cms.string('frontier://FrontierProd/CMS_CONDITIONS'),
+#        authenticationMethod = cms.untracked.uint32(1)
+#    )
+#
+#process.es_prefer = cms.ESPrefer('HcalTextCalibrations', 'es_ascii')
+#process.es_ascii = cms.ESSource(
+#    'HcalTextCalibrations',
+#    input = cms.VPSet(
+#        cms.PSet(
+#
+#            object = cms.string('ElectronicsMap'),
+#            file = cms.FileInPath("HeavyIonsAnalysis/Configuration/test/emap_2023_newZDC_v3.txt")
+#
+#             )
+#        )
+#    )
+
 ###############################################################################
 # main forest sequence
 process.forest = cms.Path(
@@ -123,9 +151,10 @@ process.forest = cms.Path(
     process.ggHiNtuplizer +
     #process.zdcdigi +
     #process.QWzdcreco +
-    process.zdcanalyzer #+
-    #process.unpackedMuons +
-    #process.muonAnalyzer
+    process.zdcanalyzer +
+    process.unpackedMuons +
+    process.muonAnalyzer +
+    process.akPu4CaloJetAnalyzer
     )
 
 #customisation
