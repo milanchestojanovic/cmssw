@@ -25,13 +25,13 @@ process.HiForestInfo.info = cms.vstring("HiForest, miniAOD, 132X, data")
 process.source = cms.Source("PoolSource",
     duplicateCheckMode = cms.untracked.string("noDuplicateCheck"),
     fileNames = cms.untracked.vstring(
-        'root://eoscms.cern.ch//store/group/phys_heavyions/wangj/RECO2023/PhysicsHIPhysicsRawPrime0/374288/step3_RAW2DIGI_L1Reco_RECO_PAT.root'
+        'root://eoscms.cern.ch//store/group/phys_heavyions/wangj/RECO2023/miniaod_HIExpress_374354/reco_run374354_ls0050_streamHIExpress_StorageManager.root'
     ), 
 )
 
 # number of events to process, set to -1 to process all events
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(20)
+    input = cms.untracked.int32(25)
     )
 
 ###############################################################################
@@ -90,6 +90,8 @@ process.load("TrackingTools.TransientTrack.TransientTrackBuilder_cfi")
 ################################
 # jet reco sequence
 process.load('HeavyIonsAnalysis.JetAnalysis.akCs4PFJetSequence_pponPbPb_data_cff')
+process.load('HeavyIonsAnalysis.JetAnalysis.akPu4CaloJetSequence_pponPbPb_data_cff')
+process.akPu4CaloJetAnalyzer.doHiJetID = True
 ################################
 # tracks
 process.load("HeavyIonsAnalysis.TrackAnalysis.TrackAnalyzers_cff")
@@ -110,22 +112,49 @@ process.zdcanalyzer.zdcDigiSrc = cms.InputTag("hcalDigis", "ZDC")
 process.zdcanalyzer.calZDCDigi = False
 process.zdcanalyzer.verbose = False
 
+#from CondCore.CondDB.CondDB_cfi import *
+#process.es_pool = cms.ESSource("PoolDBESSource",
+#    timetype = cms.string('runnumber'),
+#    toGet = cms.VPSet(
+#        cms.PSet(
+#            record = cms.string("HcalElectronicsMapRcd"),
+#            tag = cms.string("HcalElectronicsMap_2021_v2.0_data")
+#        )
+#    ),
+#    connect = cms.string('frontier://FrontierProd/CMS_CONDITIONS'),
+#        authenticationMethod = cms.untracked.uint32(1)
+#    )
+#
+#process.es_prefer = cms.ESPrefer('HcalTextCalibrations', 'es_ascii')
+#process.es_ascii = cms.ESSource(
+#    'HcalTextCalibrations',
+#    input = cms.VPSet(
+#        cms.PSet(
+#
+#            object = cms.string('ElectronicsMap'),
+#            file = cms.FileInPath("HeavyIonsAnalysis/Configuration/test/emap_2023_newZDC_v3.txt")
+#
+#             )
+#        )
+#    )
+
 ###############################################################################
 # main forest sequence
 process.forest = cms.Path(
     process.HiForestInfo +
     process.hiEvtAnalyzer +
-    process.hltanalysis +
+    process.hltanalysis 
     #process.hltobject +
     #process.l1object +
-    process.trackSequencePbPb +
+    #process.trackSequencePbPb +
     #process.particleFlowAnalyser +
-    process.ggHiNtuplizer +
+    #process.ggHiNtuplizer +
     #process.zdcdigi +
     #process.QWzdcreco +
-    process.zdcanalyzer #+
+    #process.zdcanalyzer +
     #process.unpackedMuons +
-    #process.muonAnalyzer
+    #process.muonAnalyzer +
+    #process.akPu4CaloJetAnalyzer
     )
 
 #customisation
@@ -155,14 +184,14 @@ if addR3Jets or addR3FlowJets or addR4Jets or addR4FlowJets or addUnsubtractedR4
         setupHeavyIonJets('akCs3PF', process.jetsR3, process, isMC = 0, radius = 0.30, JECTag = 'AK3PF', doFlow = False)
         process.akCs3PFpatJetCorrFactors.levels = ['L2Relative', 'L2L3Residual']
         process.akCs3PFJetAnalyzer = process.akCs4PFJetAnalyzer.clone(jetTag = "akCs3PFpatJets", jetName = 'akCs3PF', doHiJetID = doHIJetID, doWTARecluster = doWTARecluster)
-        process.forest += process.extraJetsData * process.jetsR3 * process.akCs3PFJetAnalyzer
+        #process.forest += process.extraJetsData * process.jetsR3 * process.akCs3PFJetAnalyzer
 
     if addR3FlowJets :
         process.jetsR3flow = cms.Sequence()
         setupHeavyIonJets('akCs3PFFlow', process.jetsR3flow, process, isMC = 0, radius = 0.30, JECTag = 'AK3PF', doFlow = True)
         process.akCs3PFFlowpatJetCorrFactors.levels = ['L2Relative', 'L2L3Residual']
         process.akFlowPuCs3PFJetAnalyzer = process.akCs4PFJetAnalyzer.clone(jetTag = "akCs3PFFlowpatJets", jetName = 'akCs3PFFlow', doHiJetID = doHIJetID, doWTARecluster = doWTARecluster)
-        process.forest += process.extraFlowJetsData * process.jetsR3flow * process.akFlowPuCs3PFJetAnalyzer
+        #process.forest += process.extraFlowJetsData * process.jetsR3flow * process.akFlowPuCs3PFJetAnalyzer
 
     if addR4Jets :
         # Recluster using an alias "0" in order not to get mixed up with the default AK4 collections
@@ -173,7 +202,7 @@ if addR3Jets or addR3FlowJets or addR4Jets or addR4FlowJets or addUnsubtractedR4
         process.akCs4PFJetAnalyzer.jetName = 'akCs0PF'
         process.akCs4PFJetAnalyzer.doHiJetID = doHIJetID
         process.akCs4PFJetAnalyzer.doWTARecluster = doWTARecluster
-        process.forest += process.extraJetsData * process.jetsR4 * process.akCs4PFJetAnalyzer
+        #process.forest += process.extraJetsData * process.jetsR4 * process.akCs4PFJetAnalyzer
 
     if addR4FlowJets :
         process.jetsR4flow = cms.Sequence()
@@ -183,7 +212,7 @@ if addR3Jets or addR3FlowJets or addR4Jets or addR4FlowJets or addUnsubtractedR4
         process.akFlowPuCs4PFJetAnalyzer.jetName = 'akCs4PFFlow'
         process.akFlowPuCs4PFJetAnalyzer.doHiJetID = doHIJetID
         process.akFlowPuCs4PFJetAnalyzer.doWTARecluster = doWTARecluster
-        process.forest += process.extraFlowJetsData * process.jetsR4flow * process.akFlowPuCs4PFJetAnalyzer
+        #process.forest += process.extraFlowJetsData * process.jetsR4flow * process.akFlowPuCs4PFJetAnalyzer
 
     if addUnsubtractedR4Jets:
         process.load('HeavyIonsAnalysis.JetAnalysis.ak4PFJetSequence_ppref_data_cff')
@@ -193,7 +222,7 @@ if addR3Jets or addR3FlowJets or addR4Jets or addR4FlowJets or addUnsubtractedR4
         process.ak04PFpatJetCorrFactors.levels = ['L2Relative', 'L2L3Residual']
         process.ak4PFJetAnalyzer.jetTag = "ak04PFpatJets"
         process.ak4PFJetAnalyzer.jetName = "ak04PF"
-        process.forest += process.extraJetsData * process.unsubtractedJetR4 * process.ak4PFJetAnalyzer
+        #process.forest += process.extraJetsData * process.unsubtractedJetR4 * process.ak4PFJetAnalyzer
 
 
 if addCandidateTagging:
@@ -218,7 +247,7 @@ if addCandidateTagging:
 
     process.akCs4PFJetAnalyzer.jetTag = "updatedPatJets"
 
-    process.forest.insert(1,process.candidateBtagging*process.updatedPatJets)
+    #process.forest.insert(1,process.candidateBtagging*process.updatedPatJets)
 
 #########################
 # Event Selection -> add the needed filters here
@@ -294,6 +323,8 @@ process.Dfinder.tktkRes_svpvDistanceCut_lowptD = cms.vdouble(0., 0., 0., 0., 0.,
 process.Dfinder.tktkRes_svpvDistanceCut_highptD = cms.vdouble(0., 0., 0., 0., 0., 0., 0., 0., 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 0., 0.)
 process.Dfinder.svpvDistanceCut_lowptD = cms.vdouble(2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 0., 0., 0., 0., 0., 0., 2.5, 2.5)
 process.Dfinder.svpvDistanceCut_highptD = cms.vdouble(2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 0., 0., 0., 0., 0., 0., 2.5, 2.5)
+process.Dfinder.alphaCut = cms.vdouble(0.2, 0.2, 999., 999., 999., 999., 999., 999., 999., 999., 999., 999., 999., 999., 999., 999.)
+
 process.Dfinder.Dchannel = cms.vint32(1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 process.Dfinder.dropUnusedTracks = cms.bool(True)
 process.Dfinder.detailMode = cms.bool(False)
